@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aviation Holding Pattern Practice</title>
+    <style>
+        /* Define CSS variables */
+        :root {
+            --background-color: #ffffff; /* Light mode background */
+            --text-color: #000000;       /* Light mode text */
+            --accent-color: #007bff;     /* Accent color (e.g., buttons) */
+        }
+
+        [data-theme="dark"] {
+            --background-color: #121212; /* Dark mode background */
+            --text-color: #e0e0e0;       /* Dark mode text */
+            --accent-color: #bb86fc;     /* Dark mode accent */
+        }
+
+        /* Apply variables globally */
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            font-family: Arial, sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        #input-section {
+            margin: 20px;
+        }
+
+        label {
+            display: block;
+            margin-top: 10px;
+        }
+
+        input, select, button {
+            margin-top: 5px;
+            padding: 10px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: var(--accent-color);
+            color: var(--text-color);
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        canvas {
+            display: block;
+            margin: 20px auto;
+            background-color: var(--background-color);
+            border: 1px solid var(--text-color);
+        }
+    </style>
+</head>
+<body>
+    <div id="theme-toggle">
+        <button id="toggle-dark-mode">Toggle Dark Mode</button>
+    </div>
+
+    <div id="input-section">
+        <label for="fix">Holding Fix:</label>
+        <input type="text" id="fix" placeholder="Waypoint Name">
+
+        <label for="course">Inbound Course (°M):</label>
+        <input type="number" id="course" placeholder="0-360">
+
+        <label for="turn">Direction of Turn:</label>
+        <select id="turn">
+            <option value="right">Right</option>
+            <option value="left">Left</option>
+        </select>
+
+        <label for="position">Aircraft Position (Bearing/Distance):</label>
+        <input type="number" id="bearing" placeholder="Bearing (°)">
+        <input type="number" id="distance" placeholder="Distance (NM)">
+
+        <button id="calculate">Calculate Entry</button>
+    </div>
+
+    <div id="output-section">
+        <p id="result"></p>
+        <canvas id="holding-pattern" width="400" height="400"></canvas>
+    </div>
+
+    <script>
+        // Function to set the theme
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme); // Save theme preference
+        }
+
+        // Toggle dark mode
+        document.getElementById('toggle-dark-mode').addEventListener('click', function () {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            setTheme(newTheme);
+        });
+
+        // On page load, apply the saved theme or default to light mode
+        document.addEventListener('DOMContentLoaded', function () {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            setTheme(savedTheme);
+        });
+
+        // Draw holding pattern
+        function drawHoldingPattern(entryMethod) {
+            const canvas = document.getElementById('holding-pattern');
+            const ctx = canvas.getContext('2d');
+
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Set stroke color based on theme
+            const strokeColor = document.documentElement.getAttribute('data-theme') === 'dark' ? '#bb86fc' : '#007bff';
+            ctx.strokeStyle = strokeColor;
+
+            // Draw holding pattern
+            ctx.beginPath();
+            ctx.arc(200, 200, 100, 0, 2 * Math.PI);
+            ctx.stroke();
+
+            // Highlight entry method
+            if (entryMethod === 'Direct Entry') {
+                ctx.fillStyle = strokeColor;
+                ctx.fillText('Direct Entry', 160, 210);
+            } else if (entryMethod === 'Parallel Entry') {
+                ctx.fillStyle = strokeColor;
+                ctx.fillText('Parallel Entry', 160, 210);
+            } else if (entryMethod === 'Teardrop Entry') {
+                ctx.fillStyle = strokeColor;
+                ctx.fillText('Teardrop Entry', 160, 210);
+            }
+        }
+
+        // Calculate entry method
+        document.getElementById('calculate').addEventListener('click', function () {
+            const inboundCourse = parseInt(document.getElementById('course').value);
+            const turnDirection = document.getElementById('turn').value;
+            const aircraftBearing = parseInt(document.getElementById('bearing').value);
+
+            // Normalize bearings to 0-360
+            const normalize = (angle) => (angle + 360) % 360;
+
+            // Define sector boundaries
+            const directSectorStart = normalize(inboundCourse - 70);
+            const directSectorEnd = normalize(inboundCourse + 70);
+            const parallelSectorStart = normalize(inboundCourse + 110);
+            const parallelSectorEnd = normalize(inboundCourse - 110);
+
+            // Determine method of entry
+            let entryMethod = '';
+            if (aircraftBearing >= directSectorStart && aircraftBearing <= directSectorEnd) {
+                entryMethod = 'Direct Entry';
+            } else if (aircraftBearing >= parallelSectorStart || aircraftBearing <= parallelSectorEnd) {
+                entryMethod = 'Parallel Entry';
+            } else {
+                entryMethod = 'Teardrop Entry';
+            }
+
+            // Display result
+            document.getElementById('result').textContent = `Method of Entry: ${entryMethod}`;
+
+            // Draw holding pattern
+            drawHoldingPattern(entryMethod);
+        });
+    </script>
+</body>
+</html>

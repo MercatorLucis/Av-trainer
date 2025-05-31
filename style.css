@@ -1,0 +1,72 @@
+/* Define CSS variables */
+:root {
+    --background-color: #ffffff; /* Light mode background */
+    --text-color: #000000;       /* Light mode text */
+    --accent-color: #007bff;     /* Accent color (e.g., buttons) */
+    --input-color: #ffffff;
+}
+
+[data-theme="dark"] {
+    --background-color: #121212; /* Dark mode background */
+    --text-color: #e0e0e0;       /* Dark mode text */
+    --accent-color: #bb86fc;     /* Dark mode accent */
+    --input-color: #3a3a3a;
+}
+
+/* Apply variables globally */
+body {
+    background-color: var(--background-color);
+    color: var(--text-color);
+    font-family: Arial, sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+input, select {
+    background-color: var(--input-color);
+    border: 1px solid rgb(97, 97, 97);
+    border-radius: 5px;
+    color: var(--text-color);
+}
+
+.content {
+    display: flex;
+    justify-content: center;
+    margin-top: 25px;
+}
+
+#input-section {
+    resize: both;
+    margin: 20px;
+
+}
+
+#output-section {
+    left: 40%;
+}
+
+label {
+    display: block;
+    margin-top: 10px;
+}
+
+input, select, button {
+    margin-top: 5px;
+    padding: 10px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+button {
+    background-color: var(--accent-color);
+    color: var(--text-color);
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+canvas {
+    display: block;
+    margin: 20px auto;
+    background-color: var(--background-color);
+    border: 1px solid var(--text-color);
+}
