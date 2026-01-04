@@ -1,174 +1,270 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aviation Holding Pattern Practice</title>
-    <style>
-        /* Define CSS variables */
-        :root {
-            --background-color: #ffffff; /* Light mode background */
-            --text-color: #000000;       /* Light mode text */
-            --accent-color: #007bff;     /* Accent color (e.g., buttons) */
-        }
-
-        [data-theme="dark"] {
-            --background-color: #121212; /* Dark mode background */
-            --text-color: #e0e0e0;       /* Dark mode text */
-            --accent-color: #bb86fc;     /* Dark mode accent */
-        }
-
-        /* Apply variables globally */
-        body {
-            background-color: var(--background-color);
-            color: var(--text-color);
-            font-family: Arial, sans-serif;
-            transition: background-color 0.3s ease, color 0.3s ease;
-        }
-
-        #input-section {
-            margin: 20px;
-        }
-
-        label {
-            display: block;
-            margin-top: 10px;
-        }
-
-        input, select, button {
-            margin-top: 5px;
-            padding: 10px;
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        button {
-            background-color: var(--accent-color);
-            color: var(--text-color);
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.3s ease, color 0.3s ease;
-        }
-
-        canvas {
-            display: block;
-            margin: 20px auto;
-            background-color: var(--background-color);
-            border: 1px solid var(--text-color);
-        }
-    </style>
+    <title>Aircraft Performance Calculator</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Google Fonts: Rajdhani (Technical/Square) and JetBrains Mono (Data) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Rajdhani:wght@500;600;700&display=swap"
+        rel="stylesheet">
 </head>
+
 <body>
-    <div id="theme-toggle">
-        <button id="toggle-dark-mode">Toggle Dark Mode</button>
+    <div class="app-container">
+        <header>
+            <div class="header-left">
+                <button id="menu-toggle" class="icon-btn" aria-label="Toggle Menu">
+                    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <h1>Aircraft Performance</h1>
+            </div>
+            <div class="registration-group">
+                <label>Reg</label>
+                <input type="text" id="registration" class="input-yellow" placeholder="C-XXXX">
+            </div>
+        </header>
+
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>Menu</h2>
+                <button id="menu-close" class="icon-btn" aria-label="Close Menu">
+                    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <nav class="sidebar-nav">
+                <!-- Placeholders for future links -->
+                <a href="#" class="nav-item">Dashboard</a>
+                <a href="#" class="nav-item">Aircraft Profiles</a>
+                <a href="#" class="nav-item">Settings</a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="theme-toggle">
+                    <span>Dark Mode</span>
+                    <label class="switch">
+                        <input type="checkbox" id="dark-mode-toggle">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+            </div>
+        </aside>
+        <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+        <main class="dashboard-grid">
+            <!-- Conditions Section -->
+            <section class="card conditions-card">
+                <h2>Conditions</h2>
+                <div class="conditions-grid">
+                    <div class="col-header"></div>
+                    <div class="col-header">Depart</div>
+                    <div class="col-header">Arrival</div>
+                    <div class="col-header">Cruise</div>
+
+                    <label>Station</label>
+                    <input type="text" id="dep-station" class="input-yellow" placeholder="CXXX">
+                    <input type="text" id="arr-station" class="input-yellow" placeholder="CXXX">
+                    <div class="static-value">---</div>
+
+                    <label>Altitude (ft)</label>
+                    <input type="number" id="dep-alt" class="input-yellow" value="90">
+                    <input type="number" id="arr-alt" class="input-yellow" value="434">
+                    <input type="number" id="cruise-alt" class="input-yellow" value="2500">
+
+                    <label>Alt Setting (inHg)</label>
+                    <input type="number" id="dep-alt-set" class="input-yellow" step="0.01" value="29.92">
+                    <input type="number" id="arr-alt-set" class="input-yellow" step="0.01" value="29.92">
+                    <input type="number" id="cruise-alt-set" class="input-yellow" step="0.01" value="29.92">
+
+                    <label>OAT (°C)</label>
+                    <input type="number" id="dep-oat" class="input-yellow" value="15">
+                    <input type="number" id="arr-oat" class="input-yellow" value="15">
+                    <input type="number" id="cruise-oat" class="input-yellow" value="10">
+
+                    <!-- Outputs -->
+                    <label>Std Temp (°C)</label>
+                    <input type="text" id="dep-std-t" class="output-white" readonly>
+                    <input type="text" id="arr-std-t" class="output-white" readonly>
+                    <input type="text" id="cruise-std-t" class="output-white" readonly>
+
+                    <label>Pressure Alt</label>
+                    <input type="text" id="dep-palt" class="output-white" readonly>
+                    <input type="text" id="arr-palt" class="output-white" readonly>
+                    <input type="text" id="cruise-palt" class="output-white" readonly>
+
+                    <label>Density Alt</label>
+                    <input type="text" id="dep-dalt" class="output-white" readonly>
+                    <input type="text" id="arr-dalt" class="output-white" readonly>
+                    <input type="text" id="cruise-dalt" class="output-white" readonly>
+                </div>
+            </section>
+
+            <!-- Wind & Runway Section -->
+            <section class="card wind-card">
+                <h2>Wind & Runway</h2>
+                <div class="wind-grid">
+                    <!-- Headers -->
+                    <div></div>
+                    <div>Depart</div>
+                    <div>Arrival</div>
+                    <div>Cruise</div>
+
+                    <!-- Inputs -->
+                    <label>Wind Dir/Spd</label>
+                    <div class="wind-input-group">
+                        <input type="number" id="dep-wind-dir" class="input-yellow wind-dir" placeholder="Dir">
+                        <span class="separator">@</span>
+                        <input type="number" id="dep-wind-spd" class="input-yellow wind-spd" placeholder="Kts">
+                    </div>
+                    <div class="wind-input-group">
+                        <input type="number" id="arr-wind-dir" class="input-yellow wind-dir" placeholder="Dir">
+                        <span class="separator">@</span>
+                        <input type="number" id="arr-wind-spd" class="input-yellow wind-spd" placeholder="Kts">
+                    </div>
+                    <div class="wind-input-group">
+                        <input type="number" id="cruise-wind-dir" class="input-yellow wind-dir" placeholder="Dir">
+                        <span class="separator">@</span>
+                        <input type="number" id="cruise-wind-spd" class="input-yellow wind-spd" placeholder="Kts">
+                    </div>
+
+                    <label>Runway Hdg</label>
+                    <input type="number" id="dep-rwy" class="input-yellow" placeholder="24">
+                    <input type="number" id="arr-rwy" class="input-yellow" placeholder="21">
+                    <div class="static-value">---</div>
+
+                    <!-- Outputs -->
+                    <label>Crosswind</label>
+                    <input type="text" id="dep-xwind" class="output-white" readonly>
+                    <input type="text" id="arr-xwind" class="output-white" readonly>
+                    <div class="static-value">---</div>
+
+                    <label>Headwind</label>
+                    <input type="text" id="dep-hwind" class="output-white" readonly>
+                    <input type="text" id="arr-hwind" class="output-white" readonly>
+                    <div class="static-value">---</div>
+                </div>
+            </section>
+
+            <!-- Performance Section -->
+            <section class="card performance-card">
+                <h2>Performance (1600 lbs)</h2>
+                <div class="perf-grid">
+                    <label>Takeoff Roll</label>
+                    <input type="text" id="perf-to-roll" class="output-white" readonly>
+
+                    <label>TO Over 50'</label>
+                    <input type="text" id="perf-to-50" class="output-white" readonly>
+
+                    <label>Landing Roll</label>
+                    <input type="text" id="perf-ldg-roll" class="output-white" readonly>
+
+                    <label>Ldg Over 50'</label>
+                    <input type="text" id="perf-ldg-50" class="output-white" readonly>
+                </div>
+            </section>
+
+            <!-- Fuel Section -->
+            <section class="card fuel-card">
+                <h2>Fuel</h2>
+                <div class="fuel-grid">
+                    <label>GPH</label>
+                    <input type="number" id="fuel-gph" class="input-yellow" value="4.1">
+
+                    <label>Fuel On Board (gal)</label>
+                    <input type="number" id="fuel-onboard" class="input-yellow" value="22.5">
+
+                    <hr class="span-2">
+
+                    <label>Start & Taxi</label>
+                    <input type="text" id="fuel-taxi" class="output-white" value="0.8" readonly>
+
+                    <label>Climb</label>
+                    <input type="text" id="fuel-climb" class="output-white" value="0.7" readonly>
+
+                    <label>Cruise</label>
+                    <input type="text" id="fuel-cruise" class="output-white" readonly>
+
+                    <label>Reserve</label>
+                    <input type="number" id="fuel-reserve" class="output-white" value="2.05" readonly>
+
+                    <label class="total-label">Required Fuel</label>
+                    <input type="text" id="fuel-required" class="output-white" readonly>
+
+                    <label class="total-label">Remaining</label>
+                    <input type="text" id="fuel-remaining" class="output-white" readonly>
+                </div>
+            </section>
+
+            <!-- W&B Section -->
+            <section class="card wb-card">
+                <h2>Weight & Balance</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Weight</th>
+                            <th>Arm</th>
+                            <th>Moment</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Empty Weight</td>
+                            <td><input type="number" id="wb-empty-w" class="input-yellow" value="1116.22"></td>
+                            <td><input type="number" id="wb-empty-a" class="output-white" value="33.07" readonly></td>
+                            <td><input type="text" id="wb-empty-m" class="output-white" readonly></td>
+                        </tr>
+                        <tr>
+                            <td>Front Pax</td>
+                            <td><input type="number" id="wb-front-w" class="input-yellow" value="150"></td>
+                            <td><input type="number" id="wb-front-a" class="output-white" value="39" readonly></td>
+                            <td><input type="text" id="wb-front-m" class="output-white" readonly></td>
+                        </tr>
+                        <tr>
+                            <td>Back Pax</td>
+                            <td><input type="number" id="wb-back-w" class="input-yellow" value="0"></td>
+                            <td><input type="number" id="wb-back-a" class="output-white" value="64" readonly></td>
+                            <!-- Guessing arm -->
+                            <td><input type="text" id="wb-back-m" class="output-white" readonly></td>
+                        </tr>
+                        <tr>
+                            <td>Fuel (6lbs/gal)</td>
+                            <td><input type="text" id="wb-fuel-w" class="output-white" readonly></td>
+                            <td><input type="number" id="wb-fuel-a" class="output-white" value="42.2" readonly></td>
+                            <td><input type="text" id="wb-fuel-m" class="output-white" readonly></td>
+                        </tr>
+                        <tr>
+                            <td>Baggage</td>
+                            <td><input type="number" id="wb-bag-w" class="input-yellow" value="10"></td>
+                            <td><input type="number" id="wb-bag-a" class="output-white" value="64" readonly></td>
+                            <td><input type="text" id="wb-bag-m" class="output-white" readonly></td>
+                        </tr>
+                        <tr class="total-row">
+                            <td>Totals</td>
+                            <td><input type="text" id="wb-total-w" class="output-white" readonly></td>
+                            <td><input type="text" id="wb-cg" class="output-white" readonly></td>
+                            <td><input type="text" id="wb-total-m" class="output-white" readonly></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+        </main>
     </div>
-
-    <div id="input-section">
-        <label for="fix">Holding Fix:</label>
-        <input type="text" id="fix" placeholder="Waypoint Name">
-
-        <label for="course">Inbound Course (°M):</label>
-        <input type="number" id="course" placeholder="0-360">
-
-        <label for="turn">Direction of Turn:</label>
-        <select id="turn">
-            <option value="right">Right</option>
-            <option value="left">Left</option>
-        </select>
-
-        <label for="position">Aircraft Position (Bearing/Distance):</label>
-        <input type="number" id="bearing" placeholder="Bearing (°)">
-        <input type="number" id="distance" placeholder="Distance (NM)">
-
-        <button id="calculate">Calculate Entry</button>
-    </div>
-
-    <div id="output-section">
-        <p id="result"></p>
-        <canvas id="holding-pattern" width="400" height="400"></canvas>
-    </div>
-
-    <script>
-        // Function to set the theme
-        function setTheme(theme) {
-            document.documentElement.setAttribute('data-theme', theme);
-            localStorage.setItem('theme', theme); // Save theme preference
-        }
-
-        // Toggle dark mode
-        document.getElementById('toggle-dark-mode').addEventListener('click', function () {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            setTheme(newTheme);
-        });
-
-        // On page load, apply the saved theme or default to light mode
-        document.addEventListener('DOMContentLoaded', function () {
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            setTheme(savedTheme);
-        });
-
-        // Draw holding pattern
-        function drawHoldingPattern(entryMethod) {
-            const canvas = document.getElementById('holding-pattern');
-            const ctx = canvas.getContext('2d');
-
-            // Clear canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Set stroke color based on theme
-            const strokeColor = document.documentElement.getAttribute('data-theme') === 'dark' ? '#bb86fc' : '#007bff';
-            ctx.strokeStyle = strokeColor;
-
-            // Draw holding pattern
-            ctx.beginPath();
-            ctx.arc(200, 200, 100, 0, 2 * Math.PI);
-            ctx.stroke();
-
-            // Highlight entry method
-            if (entryMethod === 'Direct Entry') {
-                ctx.fillStyle = strokeColor;
-                ctx.fillText('Direct Entry', 160, 210);
-            } else if (entryMethod === 'Parallel Entry') {
-                ctx.fillStyle = strokeColor;
-                ctx.fillText('Parallel Entry', 160, 210);
-            } else if (entryMethod === 'Teardrop Entry') {
-                ctx.fillStyle = strokeColor;
-                ctx.fillText('Teardrop Entry', 160, 210);
-            }
-        }
-
-        // Calculate entry method
-        document.getElementById('calculate').addEventListener('click', function () {
-            const inboundCourse = parseInt(document.getElementById('course').value);
-            const turnDirection = document.getElementById('turn').value;
-            const aircraftBearing = parseInt(document.getElementById('bearing').value);
-
-            // Normalize bearings to 0-360
-            const normalize = (angle) => (angle + 360) % 360;
-
-            // Define sector boundaries
-            const directSectorStart = normalize(inboundCourse - 70);
-            const directSectorEnd = normalize(inboundCourse + 70);
-            const parallelSectorStart = normalize(inboundCourse + 110);
-            const parallelSectorEnd = normalize(inboundCourse - 110);
-
-            // Determine method of entry
-            let entryMethod = '';
-            if (aircraftBearing >= directSectorStart && aircraftBearing <= directSectorEnd) {
-                entryMethod = 'Direct Entry';
-            } else if (aircraftBearing >= parallelSectorStart || aircraftBearing <= parallelSectorEnd) {
-                entryMethod = 'Parallel Entry';
-            } else {
-                entryMethod = 'Teardrop Entry';
-            }
-
-            // Display result
-            document.getElementById('result').textContent = `Method of Entry: ${entryMethod}`;
-
-            // Draw holding pattern
-            drawHoldingPattern(entryMethod);
-        });
-    </script>
+    <script src="script.js"></script>
 </body>
+
 </html>
