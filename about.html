@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About - Aircraft Performance Calculator</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Google Fonts: Rajdhani (Technical/Square) and JetBrains Mono (Data) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Rajdhani:wght@500;600;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <header>
+            <div class="header-left">
+                <button id="menu-toggle" class="icon-btn" aria-label="Toggle Menu">
+                    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <h1>About</h1>
+            </div>
+            <!-- No Reg/Aircraft select here -->
+        </header>
+
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>Menu</h2>
+                <button id="menu-close" class="icon-btn" aria-label="Close Menu">
+                    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="index.html" class="nav-item">Dashboard</a>
+                <a href="#" class="nav-item">Aircraft Profiles</a>
+                <a href="about.html" class="nav-item active">About & Q&A</a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="theme-toggle">
+                    <span>Dark Mode</span>
+                    <label class="switch">
+                        <input type="checkbox" id="dark-mode-toggle">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+            </div>
+        </aside>
+        <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+        <main class="dashboard-grid">
+            <section class="card span-2 box-shadow">
+                <h2>About the Project</h2>
+                <p style="margin-bottom: 1rem; color: var(--text-secondary);">
+                    The Aircraft Performance Calculator is designed to assist pilots in quickly calculating performance
+                    data,
+                    weight & balance, and wind components.
+                </p>
+                <p style="margin-bottom: 1rem; color: var(--text-secondary);">
+                    This tool features:
+                </p>
+                <ul style="margin-left: 1.5rem; margin-bottom: 1rem; color: var(--text-secondary);">
+                    <li>Real-time calculations for Density Altitude and Pressure Altitude.</li>
+                    <li>Wind component analysis (Headwind/Crosswind).</li>
+                    <li>Interactive Weight & Balance table.</li>
+                    <li>Aircraft Profile Management with local storage persistence.</li>
+                </ul>
+            </section>
+
+            <section class="card span-2 box-shadow">
+                <h2>Q&A</h2>
+                <div class="qa-item" style="margin-bottom: 1.5rem;">
+                    <h3 style="font-size: 1rem; color: var(--primary-accent); margin-bottom: 0.5rem;">How is performance
+                        calculated?</h3>
+                    <p style="color: var(--text-secondary);">Performance figures are derived from standard aircraft
+                        tables using bilinear interpolation for accurate results based on pressure altitude and
+                        temperature.</p>
+                </div>
+                <div class="qa-item" style="margin-bottom: 1.5rem;">
+                    <h3 style="font-size: 1rem; color: var(--primary-accent); margin-bottom: 0.5rem;">Is my data saved?
+                    </h3>
+                    <p style="color: var(--text-secondary);">Yes, aircraft profiles are saved locally in your browser's
+                        storage.</p>
+                </div>
+                <div class="qa-item">
+                    <h3 style="font-size: 1rem; color: var(--primary-accent); margin-bottom: 0.5rem;">Can I use this for
+                        flight planning?</h3>
+                    <p style="color: var(--text-secondary);">This tool is for educational and training purposes for the
+                        moment. Always
+                        refer to the official Pilot's Operating Handbook (POH) of your respective aircraft for
+                        operational data.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Aircraft Modal (Needed for sidebar link compatibility, or we disable the link on this page) -->
+    <!-- For simplicity, we can include it or just handle the link differently. 
+         Implementation Plan said "Ensure script.js is safe". 
+         If script.js tries to open modal, modal must exist OR script must check existence.
+         I'll include the modal structure to allow management from About page too.
+    -->
+    <div id="add-aircraft-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modal-title">Aircraft Profiles</h3>
+                <button id="close-modal-btn" class="icon-btn" aria-label="Close">
+                    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- LIST VIEW -->
+                <div id="modal-view-list">
+                    <div id="modal-aircraft-list" class="aircraft-list-container"></div>
+                    <div class="list-actions">
+                        <button id="btn-add-new" class="action-btn primary full-width">+ Add New Aircraft</button>
+                    </div>
+                </div>
+                <!-- FORM VIEW -->
+                <form id="add-aircraft-form" class="hidden">
+                    <input type="hidden" id="edit-index" value="-1">
+                    <div class="form-group">
+                        <label for="new-ac-reg">Registration</label>
+                        <input type="text" id="new-ac-reg" class="input-yellow" placeholder="C-GABC" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-ac-weight">Basic Empty Weight (lbs)</label>
+                        <input type="number" id="new-ac-weight" class="input-yellow" placeholder="1600" step="0.1"
+                            required>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-ac-arm">Basic Empty Arm (in)</label>
+                        <input type="number" id="new-ac-arm" class="input-yellow" placeholder="38.5" step="0.1"
+                            required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer hidden" id="modal-footer-form">
+                <button id="cancel-add-btn" class="action-btn secondary">Cancel</button>
+                <button id="save-aircraft-btn" class="action-btn primary">Save Aircraft</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dropdown Elements for script.js safety, though hidden/unused in header -->
+    <div style="display:none;">
+        <button id="select-aircraft-btn"></button>
+        <div id="aircraft-dropdown"></div>
+        <button id="add-aircraft-menu-item"></button>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
