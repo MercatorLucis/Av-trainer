@@ -1,64 +1,18 @@
 /* Aircraft Performance Calculator Logic */
 
-// --- DATA TABLES (Moved to top for safety) ---
-// Data Tables (1600 lbs) as per provided image
-const performanceData = {
-    takeoff: {
-        alts: [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000],
-        temps: [0, 10, 20, 30, 40],
-        data: [
-            // SL
-            [[655, 1245], [710, 1335], [765, 1435], [820, 1540], [880, 1650]],
-            // 1000
-            [[720, 1365], [775, 1465], [835, 1575], [900, 1690], [970, 1815]],
-            // 2000
-            [[790, 1500], [855, 1615], [920, 1735], [990, 1865], [1065, 2005]],
-            // 3000
-            [[870, 1650], [935, 1780], [1010, 1915], [1090, 2065], [1170, 2225]],
-            // 4000
-            [[955, 1820], [1030, 1965], [1115, 2125], [1200, 2290], [1290, 2475]],
-            // 5000
-            [[1050, 2015], [1140, 2185], [1230, 2360], [1325, 2555], [1430, 2770]],
-            // 6000
-            [[1160, 2245], [1255, 2435], [1360, 2640], [1465, 2870], [1580, 3120]],
-            // 7000 (Note: 40C is null)
-            [[1285, 2510], [1390, 2730], [1505, 2970], [1625, 3240], null],
-            // 8000 (Note: 30C, 40C are null)
-            [[1420, 2820], [1540, 3080], [1670, 3370], null, null]
-        ]
-    },
-    landing: {
-        alts: [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000],
-        temps: [0, 10, 20, 30, 40],
-        data: [
-            // SL
-            [[425, 1045], [440, 1065], [455, 1090], [470, 1110], [485, 1135]],
-            // 1000
-            [[440, 1065], [455, 1090], [470, 1110], [485, 1135], [505, 1165]],
-            // 2000
-            [[455, 1090], [470, 1115], [490, 1140], [505, 1165], [520, 1185]],
-            // 3000
-            [[470, 1115], [490, 1140], [505, 1165], [525, 1195], [540, 1215]],
-            // 4000
-            [[490, 1140], [505, 1165], [525, 1195], [545, 1225], [560, 1245]],
-            // 5000
-            [[510, 1170], [525, 1195], [545, 1225], [565, 1255], [585, 1285]],
-            // 6000
-            [[530, 1200], [545, 1225], [565, 1255], [585, 1285], [605, 1315]],
-            // 7000
-            [[550, 1230], [570, 1260], [590, 1290], [610, 1320], [630, 1350]],
-            // 8000
-            [[570, 1260], [590, 1290], [610, 1320], [630, 1350], [655, 1385]]
-        ]
-    }
-};
+// Performance data now loaded from aircraft-data.js system
 
 // --- Aircraft Management State ---
 let aircraftLibrary = [];
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     console.log("App initialized");
     try {
+        // Initialize POH extractor
+        if (window.pohDataExtractor) {
+            await pohDataExtractor.init();
+        }
+
         setupEventListeners();
         setupSidebar();
 
@@ -84,6 +38,26 @@ function loadAircraftLibrary() {
             console.error("Failed to parse aircraft library", e);
             aircraftLibrary = [];
         }
+    }
+    
+    // Add test aircraft if library is empty
+    if (aircraftLibrary.length === 0) {
+        aircraftLibrary.push({
+            registration: 'C-TEST',
+            model: 'C150N',
+            emptyWeight: 1116.22,
+            emptyArm: 33.07
+        });
+        
+        aircraftLibrary.push({
+            registration: 'C-GACW',
+            model: 'C150N',
+            emptyWeight: 1095.5,
+            emptyArm: 33.1
+        });
+        
+        saveAircraftLibrary();
+        console.log('Added test aircraft to library');
     }
 }
 
@@ -152,20 +126,26 @@ function setupAircraftUI() {
 
         // Reset or Fill Form
         const regInput = document.getElementById('new-ac-reg');
+        const modelSelect = document.getElementById('new-ac-model');
         const weightInput = document.getElementById('new-ac-weight');
         const armInput = document.getElementById('new-ac-arm');
 
         editIndexInput.value = index;
 
+        // Populate model options
+        populateModelOptions();
+
         if (isEdit && index >= 0) {
             const ac = aircraftLibrary[index];
             if (modalTitle) modalTitle.textContent = "Edit Aircraft";
             regInput.value = ac.registration;
+            modelSelect.value = ac.model || '';
             weightInput.value = ac.emptyWeight;
             armInput.value = ac.emptyArm;
         } else {
             if (modalTitle) modalTitle.textContent = "Add New Aircraft";
             regInput.value = "";
+            modelSelect.value = "";
             weightInput.value = "";
             armInput.value = "";
         }
@@ -198,25 +178,32 @@ function setupAircraftUI() {
         showListView();
     });
 
-    // --- Save Logic ---
+// --- Save Logic ---
     saveBtn?.addEventListener('click', (e) => {
         e.preventDefault();
 
         const regInput = document.getElementById('new-ac-reg');
+        const modelSelect = document.getElementById('new-ac-model');
         const weightInput = document.getElementById('new-ac-weight');
         const armInput = document.getElementById('new-ac-arm');
 
         const reg = regInput?.value.trim().toUpperCase();
+        const model = modelSelect?.value;
         const weight = parseFloat(weightInput?.value);
         const arm = parseFloat(armInput?.value);
         const index = parseInt(editIndexInput.value);
 
-        if (!reg || isNaN(weight) || isNaN(arm)) {
+        if (!reg || !model || isNaN(weight) || isNaN(arm)) {
             alert("Please fill in all fields correctly.");
             return;
         }
 
-        const newAircraft = { registration: reg, emptyWeight: weight, emptyArm: arm };
+        const newAircraft = { 
+            registration: reg, 
+            model: model,
+            emptyWeight: weight, 
+            emptyArm: arm 
+        };
 
         if (index >= 0) {
             // Update
@@ -228,9 +215,6 @@ function setupAircraftUI() {
 
         saveAircraftLibrary();
         showListView();
-
-        // Optional: If we just edited the currently loaded aircraft, refresh inputs?
-        // We'll skip for now to keep logic simple unless requested.
     });
 
     // --- Delete Confirmation Logic ---
@@ -263,9 +247,24 @@ function setupAircraftUI() {
         }
     });
 
-    // Make functions available to render logic (global scope hook)
-    window.editAircraft = (index) => showFormView(true, index);
+    // Helper function to populate model options
+    function populateModelOptions() {
+        const modelSelect = document.getElementById('new-ac-model');
+        if (!modelSelect) return;
 
+        const models = aircraftDataSystem.getAvailableModels();
+        modelSelect.innerHTML = '<option value="">Select Model</option>';
+
+        models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.code;
+            option.textContent = `${model.name} (${model.category})`;
+            modelSelect.appendChild(option);
+        });
+    }
+
+// Make functions available to render logic (global scope hook)
+    window.editAircraft = (index) => showFormView(true, index);
     window.deleteAircraft = (index) => openDeleteModal(index);
 }
 
@@ -293,6 +292,8 @@ function renderAircraftListModal() {
             </div>
         `;
 
+        const modelName = ac.model ? aircraftDataSystem.models[ac.model]?.name || ac.model : 'Unknown Model';
+
         const editIcon = `
             <button class="edit-btn" onclick="window.editAircraft(${index})" title="Edit">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -308,9 +309,14 @@ function renderAircraftListModal() {
             </button>
         `;
 
+        
+
         item.innerHTML = `
             ${dragHandle}
-            <span class="ac-info">${ac.registration}</span>
+            <span class="ac-info">
+                <div style="font-weight: 600;">${ac.registration}</div>
+                <div style="font-size: 0.8rem; color: #6b7280;">${modelName}</div>
+            </span>
             <div class="ac-controls">
                 ${editIcon}
             </div>
@@ -334,7 +340,11 @@ function renderShowAircraftDropdown() {
     aircraftLibrary.forEach((ac, index) => {
         const item = document.createElement('div');
         item.className = 'dropdown-item';
-        item.textContent = `${ac.registration}`;
+        const modelName = ac.model ? aircraftDataSystem.models[ac.model]?.name || ac.model : 'Unknown Model';
+        item.innerHTML = `
+            <div style="font-weight: 600;">${ac.registration}</div>
+            <div style="font-size: 0.8rem; color: #6b7280;">${modelName}</div>
+        `;
         item.addEventListener('click', () => {
             selectAircraft(ac);
             document.getElementById('aircraft-dropdown').classList.add('hidden');
@@ -344,14 +354,33 @@ function renderShowAircraftDropdown() {
 }
 
 function selectAircraft(ac) {
+    console.log('Selecting aircraft:', ac);
+
     // Populate fields
     const regInput = document.getElementById('registration');
     const weightInput = document.getElementById('wb-empty-w');
     const armInput = document.getElementById('wb-empty-a');
 
-    if (regInput) regInput.value = ac.registration;
-    if (weightInput) weightInput.value = ac.emptyWeight;
-    if (armInput) armInput.value = ac.emptyArm;
+    if (regInput) {
+        regInput.value = ac.registration;
+        console.log('Set registration to:', ac.registration);
+    }
+
+    if (weightInput) {
+        weightInput.value = ac.emptyWeight;
+        console.log('Set empty weight to:', ac.emptyWeight);
+    }
+
+    if (armInput) {
+        armInput.value = ac.emptyArm;
+        console.log('Set empty arm to:', ac.emptyArm);
+    }
+
+    // Load model-specific data if available
+    if (ac.model) {
+        console.log('Loading data for model:', ac.model);
+        loadModelData(ac.model);
+    }
 
     // Trigger calculation
     calculateAll();
@@ -448,6 +477,13 @@ function setupEventListeners() {
         });
         calculateAll();
     });
+
+    // --- Sync GPH Fields Removed ---
+
+    // Prevent dragging from output fields
+    document.querySelectorAll('.output-white').forEach(el => {
+        el.addEventListener('dragstart', e => e.preventDefault());
+    });
 }
 
 function calculateAll() {
@@ -464,6 +500,7 @@ function calculateAll() {
         calculateWB();
 
         calculatePerformance();
+        calculateSpeed();
     } catch (e) {
         console.error("Calculation Error:", e);
     }
@@ -551,13 +588,30 @@ function calculateWind(prefix) {
  * Fuel Calculations
  */
 function calculateFuel() {
-    const gph = parseFloat(document.getElementById('fuel-gph')?.value) || 0;
+    // Get current aircraft model
+    const currentModel = getCurrentAircraftModel();
+
+    let gph = parseFloat(document.getElementById('fuel-gph')?.value) || 0;
     const fuelOnBoard = parseFloat(document.getElementById('fuel-onboard')?.value) || 0;
 
-    // Fixed values for now based on screenshot
-    const taxiStart = 0.8;
-    const climb = 0.7;
-    const reserve = 2.05;
+    // Get fuel data from aircraft data system
+    let taxiStart = 0.8;
+    let climb = 0.7;
+    let reserve = 2.05;
+
+    if (currentModel) {
+        const fuelData = aircraftDataSystem.getFuelData(currentModel);
+        if (fuelData) {
+            gph = fuelData.gph;
+            taxiStart = fuelData.taxiStart;
+            climb = fuelData.climb;
+            reserve = fuelData.reserve;
+
+            // Update GPH input to match aircraft data
+            const gphInput = document.getElementById('fuel-gph');
+            if (gphInput) gphInput.value = gph;
+        }
+    }
 
     const cruiseTime = 0; // Hours
     const cruiseFuel = cruiseTime * gph;
@@ -574,6 +628,9 @@ function calculateFuel() {
  * Weight and Balance
  */
 function calculateWB() {
+    // Get current aircraft model
+    const currentModel = getCurrentAircraftModel();
+
     // Get Weights
     const emptyW = parseFloat(document.getElementById('wb-empty-w')?.value) || 0;
     const frontW = parseFloat(document.getElementById('wb-front-w')?.value) || 0;
@@ -581,12 +638,33 @@ function calculateWB() {
     const bagW = parseFloat(document.getElementById('wb-bag-w')?.value) || 0;
     const fuelOnBoard = parseFloat(document.getElementById('fuel-onboard')?.value) || 0;
 
-    // Arms from screenshot/defaults
-    const emptyA = parseFloat(document.getElementById('wb-empty-a')?.value) || 0;
-    const frontA = 39;
-    const backA = 64;
-    const bagA = 64;
-    const fuelA = 42.2;
+    // Get arms from aircraft data system
+    let emptyA = parseFloat(document.getElementById('wb-empty-a')?.value) || 0;
+    let frontA = 39;
+    let backA = 64;
+    let bagA = 64;
+    let fuelA = 42.2;
+
+    if (currentModel) {
+        const wbData = aircraftDataSystem.getWeightBalanceData(currentModel);
+        if (wbData && wbData.arms) {
+            frontA = wbData.arms.front;
+            backA = wbData.arms.back;
+            bagA = wbData.arms.baggage;
+            fuelA = wbData.arms.fuel;
+
+            // Update arm inputs to match aircraft data
+            const frontAInput = document.getElementById('wb-front-a');
+            const backAInput = document.getElementById('wb-back-a');
+            const bagAInput = document.getElementById('wb-bag-a');
+            const fuelAInput = document.getElementById('wb-fuel-a');
+
+            if (frontAInput) frontAInput.value = frontA;
+            if (backAInput) backAInput.value = backA;
+            if (bagAInput) bagAInput.value = bagA;
+            if (fuelAInput) fuelAInput.value = fuelA;
+        }
+    }
 
     // Fuel Weight (6 lbs/gal)
     const fuelW = fuelOnBoard * 6;
@@ -619,6 +697,29 @@ function calculateWB() {
  * Performance (Takeoff & Landing) using Bilinear Interpolation
  */
 function calculatePerformance() {
+    // Get current aircraft model from registration or default
+    const currentModel = getCurrentAircraftModel();
+
+    if (!currentModel) {
+        // Fallback to hardcoded data if no model selected
+        updateOutput('perf-to-roll', "N/A");
+        updateOutput('perf-to-50', "N/A");
+        updateOutput('perf-ldg-roll', "N/A");
+        updateOutput('perf-ldg-50', "N/A");
+        return;
+    }
+
+    // Get performance data from aircraft data system
+    const perfData = aircraftDataSystem.getPerformanceData(currentModel);
+
+    if (!perfData) {
+        updateOutput('perf-to-roll', "N/A");
+        updateOutput('perf-to-50', "N/A");
+        updateOutput('perf-ldg-roll', "N/A");
+        updateOutput('perf-ldg-50', "N/A");
+        return;
+    }
+
     // Current conditions at Departure and Arrival
     const depPAlt = parseFloat(document.getElementById('dep-palt')?.value) || 0;
     const depTemp = parseFloat(document.getElementById('dep-oat')?.value) || 0;
@@ -626,14 +727,73 @@ function calculatePerformance() {
     const arrPAlt = parseFloat(document.getElementById('arr-palt')?.value) || 0;
     const arrTemp = parseFloat(document.getElementById('arr-oat')?.value) || 0;
 
-    const takeoff = getInterpolatedPerformance(performanceData.takeoff, depPAlt, depTemp);
-    const landing = getInterpolatedPerformance(performanceData.landing, arrPAlt, arrTemp);
+    const takeoff = getInterpolatedPerformance(perfData.takeoff, depPAlt, depTemp);
+    const landing = getInterpolatedPerformance(perfData.landing, arrPAlt, arrTemp);
 
     updateOutput('perf-to-roll', takeoff ? Math.round(takeoff.roll) : "N/A");
     updateOutput('perf-to-50', takeoff ? Math.round(takeoff.clear50) : "N/A");
 
     updateOutput('perf-ldg-roll', landing ? Math.round(landing.roll) : "N/A");
     updateOutput('perf-ldg-50', landing ? Math.round(landing.clear50) : "N/A");
+}
+
+/**
+ * Speed Calculations (TAS, GS)
+ */
+function calculateSpeed() {
+    // 1. Get Inputs
+    const tasInput = document.getElementById('cruise-tas');
+    const tas = parseFloat(tasInput?.value);
+
+    // Get Density Altitude inputs
+    const cruiseAlt = parseFloat(document.getElementById('cruise-alt')?.value) || 0;
+    const cruiseAltSet = parseFloat(document.getElementById('cruise-alt-set')?.value) || 29.92;
+    const cruiseOat = parseFloat(document.getElementById('cruise-oat')?.value) || 15;
+
+    const stdT = 15 - (1.98 * (cruiseAlt / 1000));
+    const pAlt = (29.92 - cruiseAltSet) * 1000 + cruiseAlt;
+    const dAlt = pAlt + (120 * (cruiseOat - stdT));
+
+    if (isNaN(tas)) {
+        updateOutput('cruise-cas', "---");
+        updateOutput('cruise-gs', "---");
+        return;
+    }
+
+    // 2. Calculate CAS from TAS
+    // Formula: CAS = TAS / (1 + (0.02 * (dAlt / 1000)))
+    // This is the inverse of the approximation used before.
+    const cas = tas / (1 + (0.02 * (dAlt / 1000)));
+    updateOutput('cruise-cas', cas.toFixed(0));
+
+    // 3. Calculate Ground Speed
+    const wdir = parseFloat(document.getElementById('cruise-wind-dir')?.value);
+    const wspd = parseFloat(document.getElementById('cruise-wind-spd')?.value);
+    const course = parseFloat(document.getElementById('true-crs')?.value);
+
+    if (isNaN(wdir) || isNaN(wspd) || isNaN(course)) {
+        // If no wind data, GS = TAS
+        updateOutput('cruise-gs', tas.toFixed(0));
+        return;
+    }
+
+    // Calculate Wind Components relative to COURSE
+    let angleDiff = (wdir - course) * (Math.PI / 180);
+    const hwind = wspd * Math.cos(angleDiff);
+    const xwind = wspd * Math.sin(angleDiff);
+
+    if (Math.abs(xwind) > tas) {
+        updateOutput('cruise-gs', "---");
+        return;
+    }
+
+    const sinWCA = xwind / tas;
+    const wca = Math.asin(sinWCA); // radians
+
+    // GS = TAS * cos(WCA) - hwind
+    const gs = (tas * Math.cos(wca)) - hwind;
+
+    updateOutput('cruise-gs', Math.round(gs));
 }
 
 function getInterpolatedPerformance(table, pAlt, temp) {
@@ -698,6 +858,68 @@ function bilinear(q11, q12, q21, q22, fx, fy) {
     const r1 = q11 * (1 - fx) + q21 * fx;
     const r2 = q12 * (1 - fx) + q22 * fx;
     return r1 * (1 - fy) + r2 * fy;
+}
+
+// Helper function to get current aircraft model
+function getCurrentAircraftModel() {
+    // Try to get model from selected aircraft in library
+    const regInput = document.getElementById('registration');
+    if (regInput && regInput.value) {
+        const registration = regInput.value.trim().toUpperCase();
+        const aircraft = aircraftLibrary.find(ac => ac.registration === registration);
+        if (aircraft && aircraft.model) {
+            console.log('Found aircraft model:', aircraft.model);
+            return aircraft.model;
+        }
+    }
+
+    // Fallback to default model (C150N)
+    console.log('Using default model: C150N');
+    return 'C150N';
+}
+
+// Helper function to load model-specific data into UI
+function loadModelData(modelCode) {
+    console.log('Loading model data for:', modelCode);
+
+    const modelData = aircraftDataSystem.models[modelCode];
+    if (!modelData) {
+        console.error('Model data not found:', modelCode);
+        return;
+    }
+
+    // Load fuel data
+    if (modelData.fuel) {
+        const gphInput = document.getElementById('fuel-gph');
+        const taxiInput = document.getElementById('fuel-taxi');
+        const climbInput = document.getElementById('fuel-climb');
+        const reserveInput = document.getElementById('fuel-reserve');
+
+        if (gphInput) gphInput.value = modelData.fuel.gph;
+        if (taxiInput) taxiInput.value = modelData.fuel.taxiStart;
+        if (climbInput) climbInput.value = modelData.fuel.climb;
+        if (reserveInput) reserveInput.value = modelData.fuel.reserve;
+
+        console.log('Loaded fuel data:', modelData.fuel);
+    }
+
+    // Load W&B arms
+    if (modelData.weightBalance && modelData.weightBalance.arms) {
+        const arms = modelData.weightBalance.arms;
+        const frontAInput = document.getElementById('wb-front-a');
+        const backAInput = document.getElementById('wb-back-a');
+        const bagAInput = document.getElementById('wb-bag-a');
+        const fuelAInput = document.getElementById('wb-fuel-a');
+
+        if (frontAInput) frontAInput.value = arms.front;
+        if (backAInput) backAInput.value = arms.back;
+        if (bagAInput) bagAInput.value = arms.baggage;
+        if (fuelAInput) fuelAInput.value = arms.fuel;
+
+        console.log('Loaded W&B arms:', arms);
+    }
+
+    console.log('Model data loaded successfully');
 }
 
 // Helper

@@ -464,7 +464,7 @@ td {
 /* Clear Button */
 .clear-btn-container {
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
     align-items: flex-start;
 }
 
@@ -796,4 +796,12 @@ td {
     border-width: 6px;
     border-style: solid;
     border-color: transparent transparent var(--primary-accent) transparent;
+}
+
+/* Speed Grid */
+.speed-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8rem;
+    align-items: center;
 }
