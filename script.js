@@ -1,32 +1,452 @@
-/* Aircraft Performance Calculator Logic */
-
-// Performance data now loaded from aircraft-data.js system
-
 // --- Aircraft Management State ---
 let aircraftLibrary = [];
+let flightLegs = [];
+let stationCoords = { dep: null, arr: null };
+let legToDeleteIndex = -1;
+
+/**
+ * Toast Notification System
+ * type: 'success', 'error', 'info'
+ */
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+
+    // Icons based on type
+    let icon = '';
+    if (type === 'success') icon = '✓';
+    else if (type === 'error') icon = '⚠';
+    else icon = 'ℹ';
+
+    toast.innerHTML = `
+        <div class="toast-msg">
+            <span style="font-size: 1.2rem;">${icon}</span>
+            <span>${message}</span>
+        </div>
+    `;
+
+    container.appendChild(toast);
+
+    // Auto remove
+    setTimeout(() => {
+        toast.classList.add('hiding');
+        toast.addEventListener('animationend', () => {
+            if (container.contains(toast)) {
+                container.removeChild(toast);
+            }
+        });
+    }, 4000); // 4 seconds
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("App initialized");
     try {
-        // Initialize POH extractor
-        if (window.pohDataExtractor) {
-            await pohDataExtractor.init();
-        }
+
 
         setupEventListeners();
         setupSidebar();
 
-        // Initialize Aircraft Manager
+        // Initialize Aircraft Library
         loadAircraftLibrary();
         setupAircraftUI();
 
+        // Initialize Flight Legs
+        loadFlightLegs();
+        setupFlightPlanningUI();
+
         if (document.querySelector('.dashboard-grid')) {
             calculateAll();
+            startZuluClock();
+            setupWeatherIntegration(); // New line
         }
     } catch (e) {
         console.error("Critical Error during initialization:", e);
     }
 });
+
+// --- Weather Integration ---
+let stationUpdateTimeout = null;
+
+function setupWeatherIntegration() {
+    const depStation = document.getElementById('dep-station');
+    const arrStation = document.getElementById('arr-station');
+    const depTime = document.getElementById('dep-time');
+
+    const debouncedUpdate = (type) => {
+        if (stationUpdateTimeout) clearTimeout(stationUpdateTimeout);
+        stationUpdateTimeout = setTimeout(() => handleStationUpdate(type), 500);
+    };
+
+    if (depStation) {
+        depStation.addEventListener('input', () => {
+            if (depStation.value.length >= 3) debouncedUpdate('dep');
+        });
+        depStation.addEventListener('blur', () => handleStationUpdate('dep'));
+    }
+
+    if (arrStation) {
+        arrStation.addEventListener('input', () => {
+            if (arrStation.value.length >= 3) debouncedUpdate('arr');
+        });
+        arrStation.addEventListener('blur', () => handleStationUpdate('arr'));
+    }
+
+    if (depTime) {
+        depTime.addEventListener('blur', () => {
+            // If time changes, re-fetch both if they exist
+            if (depStation.value) handleStationUpdate('dep');
+            if (arrStation.value) handleStationUpdate('arr');
+        });
+    }
+}
+
+async function handleStationUpdate(type) {
+    const stationInput = document.getElementById(`${type}-station`);
+    const statusEl = document.getElementById(`${type}-weather-status`);
+    if (!stationInput) return;
+
+    const rawId = stationInput.value.trim().toUpperCase();
+    if (rawId.length < 3) {
+        if (statusEl) statusEl.innerHTML = '';
+        return;
+    }
+
+    console.log(`[WeatherService] Initiating update for ${type}: ${rawId}`);
+
+    // Show loading indicator
+    if (statusEl) {
+        statusEl.className = 'weather-status';
+        statusEl.innerHTML = '<div class="spinner"></div> Loading...';
+    }
+
+    // Gather context
+    const depTimeInput = document.getElementById('dep-time');
+    let useTaf = false;
+    let targetDate = null;
+
+    if (depTimeInput && depTimeInput.value && depTimeInput.value.length === 4) {
+        const hh = parseInt(depTimeInput.value.substring(0, 2));
+        const mm = parseInt(depTimeInput.value.substring(2, 4));
+        const now = new Date();
+        const t = new Date(now);
+        t.setUTCHours(hh, mm, 0, 0);
+        if (t < now) t.setUTCDate(t.getUTCDate() + 1);
+        targetDate = t;
+        useTaf = true;
+    }
+
+    try {
+        // 1. Fetch Station Info and Weather in PARALLEL for speed
+        const [info, metarData, tafData] = await Promise.all([
+            weatherService.getStationInfo(rawId),
+            weatherService.getWeather(rawId, 'metar'),
+            useTaf ? weatherService.getWeather(rawId, 'taf') : Promise.resolve(null)
+        ]);
+
+        // 2. Process Station Info (Elevation & Coords)
+        if (info) {
+            if (info.elevationFeet !== undefined && info.elevationFeet !== null) {
+                const altInput = document.getElementById(`${type}-alt`);
+                if (altInput) altInput.value = info.elevationFeet;
+            }
+            if (info.lat && info.lon) {
+                stationCoords[type] = { lat: info.lat, lon: info.lon };
+                calculateDistance();
+
+                // Auto-set Timezone if Departure
+                if (type === 'dep') {
+                    const offset = Math.round(info.lon / 15);
+                    const tzSelect = document.getElementById('time-zone-select');
+                    if (tzSelect) {
+                        tzSelect.value = offset;
+                        // Trigger visual update if needed, but the clock loop reads value automatically
+                    }
+                }
+            }
+        }
+
+        // 3. Process Weather Data
+        let weather = null;
+        let metar = metarData ? weatherService.parseMetar(metarData) : null;
+        let taf = tafData ? weatherService.parseTaf(tafData, targetDate) : null;
+
+        if (useTaf && taf) {
+            weather = taf;
+            if (metar) {
+                // Merge METAR persistence info into TAF if values missing
+                if (weather.temp === null) weather.temp = metar.temp;
+                if (!weather.altimeterInHg) weather.altimeterInHg = metar.altimeterInHg;
+            }
+        } else {
+            weather = metar;
+        }
+
+        // 4. Update UI
+        if (weather) {
+            fillWeatherInputs(type, weather, info);
+
+            // Show success status
+            if (statusEl) {
+                statusEl.className = 'weather-status success';
+                statusEl.innerHTML = '✓ Weather loaded';
+                // Clear success message after 3 seconds
+                setTimeout(() => {
+                    if (statusEl.innerHTML.includes('Weather loaded')) {
+                        statusEl.innerHTML = '';
+                    }
+                }, 3000);
+            }
+
+            // Recalculate after a short delay
+            setTimeout(() => {
+                calculateCruiseAverages();
+                calculateAll();
+            }, 0);
+        } else {
+            // No weather data found
+            if (statusEl) {
+                statusEl.className = 'weather-status error';
+                statusEl.innerHTML = 'No data found';
+            }
+        }
+    } catch (e) {
+        console.error("[WeatherService] Update failed:", e);
+        if (statusEl) {
+            statusEl.className = 'weather-status error';
+            statusEl.innerHTML = 'Fetch failed';
+        }
+    }
+}
+
+function clearWeatherInputs(type) {
+    const fields = ['alt-set', 'oat', 'wind-dir', 'wind-spd', 'rwy'];
+    fields.forEach(f => {
+        const el = document.getElementById(`${type}-${f}`);
+        if (el) el.value = "";
+    });
+}
+
+function fillWeatherInputs(type, weather, info) {
+    console.log(`Filling inputs for ${type}. Weather:`, weather);
+
+    // Altimeter
+    const altSet = document.getElementById(`${type}-alt-set`);
+    if (altSet) {
+        if (weather.altimeterInHg !== undefined && weather.altimeterInHg !== null) {
+            const val = parseFloat(weather.altimeterInHg).toFixed(2);
+            altSet.value = val;
+            console.log(`Set ${type} altimeter to ${val}`);
+        } else {
+            console.warn(`No altimeter data for ${type}`);
+        }
+    }
+
+    // Temp (OAT)
+    const oat = document.getElementById(`${type}-oat`);
+    if (oat) {
+        if (weather.temp !== undefined && weather.temp !== null) {
+            oat.value = weather.temp;
+            console.log(`Set ${type} OAT to ${weather.temp}`);
+        } else {
+            console.warn(`No temperature data for ${type}`);
+        }
+    }
+
+    // Wind
+    const wDir = document.getElementById(`${type}-wind-dir`);
+    const wSpd = document.getElementById(`${type}-wind-spd`);
+    if (wDir) {
+        if (weather.windDir !== undefined && weather.windDir !== null) {
+            wDir.value = weather.windDir;
+            console.log(`Set ${type} wind direction to ${weather.windDir}`);
+        }
+    }
+    if (wSpd) {
+        if (weather.windSpd !== undefined && weather.windSpd !== null) {
+            wSpd.value = weather.windSpd;
+            console.log(`Set ${type} wind speed to ${weather.windSpd}`);
+        }
+    }
+
+    // Runway
+    // Runway
+    const rwy = document.getElementById(`${type}-rwy`);
+    const availToInput = document.getElementById('avail-to-dist');
+    const availLdgInput = document.getElementById('avail-ldg-dist');
+
+    if (rwy && info && info.runways && info.runways.length > 0) {
+        const best = weatherService.determineRunway(weather.windDir, info.runways);
+        if (best !== null && best !== undefined) {
+            const rwyNum = parseInt(best.id);
+            if (!isNaN(rwyNum)) {
+                rwy.value = rwyNum;
+                console.log(`Set ${type} runway to ${rwyNum} (best for wind ${weather.windDir})`);
+
+                // Auto-fill Available Runway based on type
+                if (best.length) {
+                    if (type === 'dep' && availToInput) {
+                        availToInput.value = best.length;
+                    } else if (type === 'arr' && availLdgInput) {
+                        availLdgInput.value = best.length;
+                    }
+                }
+            }
+        }
+    }
+}
+
+function calculateCruiseAverages() {
+    const depOat = parseFloat(document.getElementById('dep-oat').value);
+    const arrOat = parseFloat(document.getElementById('arr-oat').value);
+    const depAlt = parseFloat(document.getElementById('dep-alt-set').value);
+    const arrAlt = parseFloat(document.getElementById('arr-alt-set').value);
+
+    // Temp Avg
+    if (!isNaN(depOat) && !isNaN(arrOat)) {
+        const avg = (depOat + arrOat) / 2;
+        document.getElementById('cruise-oat').value = avg.toFixed(1);
+    }
+
+    // Altimeter Avg
+    if (!isNaN(depAlt) && !isNaN(arrAlt)) {
+        const avg = (depAlt + arrAlt) / 2;
+        // Cruise altimeter isn't always standard 29.92 depending on altitude, but for planning:
+        document.getElementById('cruise-alt-set').value = avg.toFixed(2);
+    }
+
+    // Winds Aloft (Simplified: Average of Surface Winds)
+    const depDir = parseFloat(document.getElementById('dep-wind-dir').value);
+    const depSpd = parseFloat(document.getElementById('dep-wind-spd').value);
+    const arrDir = parseFloat(document.getElementById('arr-wind-dir').value);
+    const arrSpd = parseFloat(document.getElementById('arr-wind-spd').value);
+
+    if (!isNaN(depDir) && !isNaN(depSpd) && !isNaN(arrDir) && !isNaN(arrSpd)) {
+        // Simple vector averaging or just scalar for speed?
+        // Scalar avg for now.
+        const avgSpd = (depSpd + arrSpd) / 2;
+
+        // Circular avg for direction is strictly better but linear is "ok" for small diffs.
+        // Let's do simple linear avg, handling 360 wrap logic is overkill for this step unless requested.
+        let avgDir = (depDir + arrDir) / 2;
+        if (Math.abs(depDir - arrDir) > 180) {
+            avgDir += 180;
+            if (avgDir > 360) avgDir -= 360;
+        }
+
+        document.getElementById('cruise-wind-dir').value = Math.round(avgDir);
+        document.getElementById('cruise-wind-spd').value = Math.round(avgSpd);
+    }
+}
+
+function startZuluClock() {
+    // Initialize Timer Select
+    const tzSelect = document.getElementById('time-zone-select');
+    if (tzSelect && tzSelect.options.length === 1) { // Only default exists
+        tzSelect.innerHTML = '';
+        for (let i = -12; i <= 14; i++) {
+            const opt = document.createElement('option');
+            opt.value = i;
+            const sign = i >= 0 ? '+' : '';
+            opt.textContent = `UTC${sign}${i}`;
+            if (i === 0) opt.selected = true;
+            tzSelect.appendChild(opt);
+        }
+        // Try to set system local default if no data
+        const sysOffset = -new Date().getTimezoneOffset() / 60;
+        tzSelect.value = Math.round(sysOffset);
+    }
+
+    function update() {
+        const now = new Date();
+        const hours = String(now.getUTCHours()).padStart(2, '0');
+        const minutes = String(now.getUTCMinutes()).padStart(2, '0');
+        const seconds = String(now.getUTCSeconds()).padStart(2, '0');
+
+        const clockEl = document.getElementById('zulu-clock');
+        if (clockEl) {
+            clockEl.textContent = `${hours}:${minutes}:${seconds}Z`;
+        }
+
+        // Local Clock
+        let offset = 0;
+        if (tzSelect) offset = parseFloat(tzSelect.value) || 0;
+
+        const localTime = new Date(now.getTime() + (offset * 3600000));
+        const lHours = String(localTime.getUTCHours()).padStart(2, '0');
+        const lMinutes = String(localTime.getUTCMinutes()).padStart(2, '0');
+        const lSeconds = String(localTime.getUTCSeconds()).padStart(2, '0');
+
+        const localEl = document.getElementById('local-clock');
+        if (localEl) localEl.textContent = `${lHours}:${lMinutes}:${lSeconds}`;
+
+        // Update relative time
+        updateRelativeTime(now, offset);
+    }
+
+    update(); // Initial call
+    setInterval(update, 1000); // Update every second
+}
+
+function updateRelativeTime(now, offset) {
+    const input = document.getElementById('dep-time');
+    const output = document.getElementById('dep-relative-time');
+
+    if (!input || !output) return;
+
+    let val = input.value.trim().replace(':', '');
+
+    if (!/^\d{3,4}$/.test(val)) {
+        output.textContent = "";
+        return;
+    }
+
+    val = val.padStart(4, '0');
+
+    if (!/^([01][0-9]|2[0-3])[0-5][0-9]$/.test(val)) {
+        output.textContent = "Invalid time (HHMM)";
+        return;
+    }
+
+    const depH = parseInt(val.substring(0, 2), 10);
+    const depM = parseInt(val.substring(2, 4), 10);
+
+    // Create Date object for Departure (UTC)
+    let depTime = new Date(now);
+    depTime.setUTCHours(depH, depM, 0, 0);
+
+    // If depTime is in the past (e.g. now 1400Z, input 1300Z), assume tomorrow
+    if (depTime < now) {
+        depTime.setUTCDate(depTime.getUTCDate() + 1);
+    }
+
+    const diffMs = depTime - now;
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    // Calculate "Local" Day
+    // We add the offset to both UTC times to see what "day" it is locally
+    const nowLocal = new Date(now.getTime() + (offset * 3600000));
+    const depLocal = new Date(depTime.getTime() + (offset * 3600000));
+
+    // Compare Local Date Strings (YYYY-MM-DD) to determine today/tomorrow
+    // Using getUTCDate because 'nowLocal' acts as a UTC container for the shifted time
+    const nowDay = nowLocal.getUTCDate();
+    const depDay = depLocal.getUTCDate();
+
+    // Simple check: if same day -> Today. If next day -> Tomorrow.
+    // Note: If crossing month/year, dates differ.
+    // robust check: compare full date strings
+    const nowStr = nowLocal.toISOString().split('T')[0];
+    const depStr = depLocal.toISOString().split('T')[0];
+
+    const dayStr = (nowStr === depStr) ? "today" : "tomorrow";
+
+    output.textContent = `That's ${dayStr} in ${diffHours}h ${diffMinutes}m (local time)`;
+}
+
 
 // --- Aircraft Logic ---
 function loadAircraftLibrary() {
@@ -39,25 +459,18 @@ function loadAircraftLibrary() {
             aircraftLibrary = [];
         }
     }
-    
+
     // Add test aircraft if library is empty
     if (aircraftLibrary.length === 0) {
         aircraftLibrary.push({
-            registration: 'C-TEST',
-            model: 'C150N',
-            emptyWeight: 1116.22,
-            emptyArm: 33.07
-        });
-        
-        aircraftLibrary.push({
-            registration: 'C-GACW',
-            model: 'C150N',
-            emptyWeight: 1095.5,
+            registration: 'N-TRAINR',
+            model: 'GENERIC',
+            emptyWeight: 1120,
             emptyArm: 33.1
         });
-        
+
         saveAircraftLibrary();
-        console.log('Added test aircraft to library');
+        console.log('Added default generic aircraft to library');
     }
 }
 
@@ -178,7 +591,7 @@ function setupAircraftUI() {
         showListView();
     });
 
-// --- Save Logic ---
+    // --- Save Logic ---
     saveBtn?.addEventListener('click', (e) => {
         e.preventDefault();
 
@@ -194,15 +607,15 @@ function setupAircraftUI() {
         const index = parseInt(editIndexInput.value);
 
         if (!reg || !model || isNaN(weight) || isNaN(arm)) {
-            alert("Please fill in all fields correctly.");
+            showToast("Please fill in all fields correctly.", "error");
             return;
         }
 
-        const newAircraft = { 
-            registration: reg, 
+        const newAircraft = {
+            registration: reg,
             model: model,
-            emptyWeight: weight, 
-            emptyArm: arm 
+            emptyWeight: weight,
+            emptyArm: arm
         };
 
         if (index >= 0) {
@@ -263,7 +676,35 @@ function setupAircraftUI() {
         });
     }
 
-// Make functions available to render logic (global scope hook)
+    // --- Reset / Format Logic ---
+    const resetBtn = document.getElementById('btn-format-reset');
+    const resetModal = document.getElementById('reset-confirm-modal');
+    const cancelResetBtn = document.getElementById('cancel-reset-btn');
+    const confirmResetBtn = document.getElementById('confirm-reset-btn');
+
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            resetModal.classList.remove('hidden');
+        });
+    }
+
+    if (cancelResetBtn) {
+        cancelResetBtn.addEventListener('click', () => {
+            resetModal.classList.add('hidden');
+        });
+    }
+
+    if (confirmResetBtn) {
+        confirmResetBtn.addEventListener('click', () => {
+            // Nuclear option: Clear everything
+            localStorage.clear();
+
+            // Reload to reset state
+            location.reload();
+        });
+    }
+
+    // Make functions available to render logic (global scope hook)
     window.editAircraft = (index) => showFormView(true, index);
     window.deleteAircraft = (index) => openDeleteModal(index);
 }
@@ -309,7 +750,7 @@ function renderAircraftListModal() {
             </button>
         `;
 
-        
+
 
         item.innerHTML = `
             ${dragHandle}
@@ -450,6 +891,26 @@ function setupEventListeners() {
         input.addEventListener('input', calculateAll);
     });
 
+    // Speed and Performance manual triggers
+    document.getElementById('cruise-tas')?.addEventListener('input', calculateAll);
+    document.getElementById('avail-to-dist')?.addEventListener('input', calculateAll);
+    document.getElementById('avail-ldg-dist')?.addEventListener('input', calculateAll);
+
+    // Fuel Weight Manual Trigger
+    document.getElementById('wb-fuel-w')?.addEventListener('input', function () {
+        const weight = parseFloat(this.value);
+        const fuelOnBoard = document.getElementById('fuel-onboard');
+        if (!isNaN(weight) && fuelOnBoard) {
+            // Update Gallons based on Weight (6 lbs/gal)
+            const gallons = weight / 6;
+            // Only update the value, don't trigger its input event immediately to avoid loops
+            fuelOnBoard.value = gallons.toFixed(1);
+
+            // Now run calculations but calculateWB will respect focus
+            calculateAll();
+        }
+    });
+
     // Help Button Toggle
     const helpBtn = document.getElementById('help-btn');
     const helpTooltip = document.getElementById('help-tooltip');
@@ -475,6 +936,12 @@ function setupEventListeners() {
         userInputs.forEach(input => {
             input.value = "";
         });
+
+        // Reset summary and legs
+        flightLegs = [];
+        saveFlightLegs();
+        console.log('Flight legs and summary reset');
+
         calculateAll();
     });
 
@@ -492,15 +959,22 @@ function calculateAll() {
         calculateAtmosphere('arr');
         calculateAtmosphere('cruise');
 
+        // Wind depends on True Course which depends on coordinates (already set?)
+        // Actually True Course is an input or calculated by calculateDistance which is called when stations update.
+        // But calculateWind('cruise') uses true-crs input.
+
         calculateWind('dep');
         calculateWind('arr');
         calculateWind('cruise');
 
-        calculateFuel();
-        calculateWB();
-
-        calculatePerformance();
+        // Speed depends on Wind (GS)
         calculateSpeed();
+
+        // Fuel depends on Speed (GS checks) and Distance
+        calculateFuel();
+
+        calculateWB();
+        calculatePerformance();
     } catch (e) {
         console.error("Calculation Error:", e);
     }
@@ -588,40 +1062,109 @@ function calculateWind(prefix) {
  * Fuel Calculations
  */
 function calculateFuel() {
-    // Get current aircraft model
+    // Get current aircraft model (for reference, but we use inputs now)
     const currentModel = getCurrentAircraftModel();
 
     let gph = parseFloat(document.getElementById('fuel-gph')?.value) || 0;
     const fuelOnBoard = parseFloat(document.getElementById('fuel-onboard')?.value) || 0;
 
-    // Get fuel data from aircraft data system
-    let taxiStart = 0.8;
-    let climb = 0.7;
-    let reserve = 2.05;
+    // Get fuel phases from inputs (now editable)
+    let taxiStart = parseFloat(document.getElementById('fuel-taxi')?.value) || 0;
+    let climb = parseFloat(document.getElementById('fuel-climb')?.value) || 0;
+    // Reserve is auto-calculated below based on VFR day/night rules
+    let reserve = 0;
 
-    if (currentModel) {
-        const fuelData = aircraftDataSystem.getFuelData(currentModel);
-        if (fuelData) {
-            gph = fuelData.gph;
-            taxiStart = fuelData.taxiStart;
-            climb = fuelData.climb;
-            reserve = fuelData.reserve;
+    // Calculate Cruise Fuel
+    // Needs Distance and Ground Speed
+    const dist = parseFloat(document.getElementById('flight-dist')?.value) || 0;
+    const gs = parseFloat(document.getElementById('cruise-gs')?.value) || 0;
 
-            // Update GPH input to match aircraft data
-            const gphInput = document.getElementById('fuel-gph');
-            if (gphInput) gphInput.value = gph;
+    let cruiseTime = 0;
+    let cruiseFuel = 0;
+
+    if (dist > 0 && gs > 0) {
+        cruiseTime = dist / gs; // Hours
+        cruiseFuel = cruiseTime * gph;
+
+        // Update ETE as well
+        const eteHours = Math.floor(cruiseTime);
+        const eteMinutes = Math.round((cruiseTime - eteHours) * 60);
+        const eteStr = `${eteHours.toString().padStart(2, '0')}:${eteMinutes.toString().padStart(2, '0')}`;
+        updateOutput('flight-ete', eteStr);
+
+        // Update ETA if departure time is set
+        const depTimeInput = document.getElementById('dep-time');
+        if (depTimeInput && depTimeInput.value.length === 4) {
+            const depH = parseInt(depTimeInput.value.substring(0, 2));
+            const depM = parseInt(depTimeInput.value.substring(2, 4));
+
+            let arrTimeM = depM + eteMinutes;
+            let arrTimeH = depH + eteHours + Math.floor(arrTimeM / 60);
+            arrTimeM = arrTimeM % 60;
+            arrTimeH = arrTimeH % 24;
+
+            const etaStr = `${arrTimeH.toString().padStart(2, '0')}${arrTimeM.toString().padStart(2, '0')}Z`;
+            updateOutput('flight-eta', etaStr);
+        } else {
+            updateOutput('flight-eta', "--:--Z");
         }
+
+    } else {
+        updateOutput('flight-ete', "--:--");
+        updateOutput('flight-eta', "--:--Z");
     }
 
-    const cruiseTime = 0; // Hours
-    const cruiseFuel = cruiseTime * gph;
+    // --- VFR Reserve Calculation (auto, based on day/night) ---
+    // Day VFR  (0600–1759 local): 30 min = GPH × 0.5
+    // Night VFR (1800–0559 local): 45 min = GPH × 0.75
+    let reserveLabel = '';
+
+    if (gph > 0) {
+        const depTimeInput2 = document.getElementById('dep-time');
+        const tzSelect = document.getElementById('time-zone-select');
+        const tzOffset = tzSelect ? (parseFloat(tzSelect.value) || 0) : 0;
+        let reserveMultiplier = 0.5; // Default: Day VFR
+        reserveLabel = 'Day VFR (30 min)';
+
+        if (depTimeInput2 && depTimeInput2.value.length === 4) {
+            const depHutc = parseInt(depTimeInput2.value.substring(0, 2));
+            const depMutc = parseInt(depTimeInput2.value.substring(2, 4));
+            // Convert UTC departure to local fractional hour
+            const localHour = ((depHutc * 60 + depMutc + tzOffset * 60) / 60 + 48) % 24;
+            if (localHour >= 6 && localHour < 18) {
+                reserveMultiplier = 0.5;
+                reserveLabel = 'Day VFR (30 min)';
+            } else {
+                reserveMultiplier = 0.75;
+                reserveLabel = 'Night VFR (45 min)';
+            }
+        }
+
+        reserve = gph * reserveMultiplier;
+        const reserveInput = document.getElementById('fuel-reserve');
+        if (reserveInput) reserveInput.value = reserve.toFixed(2);
+    }
+
+    // Update or create reserve fine-print note
+    let reserveNote = document.getElementById('reserve-note');
+    if (!reserveNote) {
+        reserveNote = document.createElement('div');
+        reserveNote.id = 'reserve-note';
+        reserveNote.className = 'fine-print';
+        reserveNote.style.gridColumn = '1 / -1';
+        const reserveInput = document.getElementById('fuel-reserve');
+        if (reserveInput && reserveInput.parentNode) {
+            reserveInput.parentNode.insertBefore(reserveNote, reserveInput.nextSibling);
+        }
+    }
+    reserveNote.textContent = reserveLabel;
 
     const reqFuel = taxiStart + climb + cruiseFuel + reserve;
     const remain = fuelOnBoard - reqFuel;
 
     updateOutput('fuel-cruise', cruiseFuel.toFixed(1));
-    updateOutput('fuel-required', reqFuel.toFixed(2));
-    updateOutput('fuel-remaining', remain.toFixed(2));
+    updateOutput('fuel-required', reqFuel.toFixed(1));
+    updateOutput('fuel-remaining', remain.toFixed(1));
 }
 
 /**
@@ -639,36 +1182,24 @@ function calculateWB() {
     const fuelOnBoard = parseFloat(document.getElementById('fuel-onboard')?.value) || 0;
 
     // Get arms from aircraft data system
+    // Get arms from inputs (now editable)
     let emptyA = parseFloat(document.getElementById('wb-empty-a')?.value) || 0;
-    let frontA = 39;
-    let backA = 64;
-    let bagA = 64;
-    let fuelA = 42.2;
+    let frontA = parseFloat(document.getElementById('wb-front-a')?.value) || 0;
+    let backA = parseFloat(document.getElementById('wb-back-a')?.value) || 0;
+    let bagA = parseFloat(document.getElementById('wb-bag-a')?.value) || 0;
+    let fuelA = parseFloat(document.getElementById('wb-fuel-a')?.value) || 0;
 
-    if (currentModel) {
-        const wbData = aircraftDataSystem.getWeightBalanceData(currentModel);
-        if (wbData && wbData.arms) {
-            frontA = wbData.arms.front;
-            backA = wbData.arms.back;
-            bagA = wbData.arms.baggage;
-            fuelA = wbData.arms.fuel;
-
-            // Update arm inputs to match aircraft data
-            const frontAInput = document.getElementById('wb-front-a');
-            const backAInput = document.getElementById('wb-back-a');
-            const bagAInput = document.getElementById('wb-bag-a');
-            const fuelAInput = document.getElementById('wb-fuel-a');
-
-            if (frontAInput) frontAInput.value = frontA;
-            if (backAInput) backAInput.value = backA;
-            if (bagAInput) bagAInput.value = bagA;
-            if (fuelAInput) fuelAInput.value = fuelA;
-        }
-    }
+    // We no longer overwrite these from the model every time.
+    // They are set by loadModelData() when the aircraft is selected.
 
     // Fuel Weight (6 lbs/gal)
     const fuelW = fuelOnBoard * 6;
-    updateOutput('wb-fuel-w', fuelW.toFixed(1));
+
+    // Only update the weight input if the user is NOT currently focused on it
+    const fuelWInput = document.getElementById('wb-fuel-w');
+    if (fuelWInput && document.activeElement !== fuelWInput) {
+        fuelWInput.value = fuelW.toFixed(1);
+    }
 
     // Moments
     const emptyM = emptyW * emptyA;
@@ -730,11 +1261,47 @@ function calculatePerformance() {
     const takeoff = getInterpolatedPerformance(perfData.takeoff, depPAlt, depTemp);
     const landing = getInterpolatedPerformance(perfData.landing, arrPAlt, arrTemp);
 
+    const toTotal = takeoff ? Math.round(takeoff.clear50) : null;
+    const ldgTotal = landing ? Math.round(landing.clear50) : null;
+
     updateOutput('perf-to-roll', takeoff ? Math.round(takeoff.roll) : "N/A");
-    updateOutput('perf-to-50', takeoff ? Math.round(takeoff.clear50) : "N/A");
+    updateOutput('perf-to-50', toTotal || "N/A");
 
     updateOutput('perf-ldg-roll', landing ? Math.round(landing.roll) : "N/A");
-    updateOutput('perf-ldg-50', landing ? Math.round(landing.clear50) : "N/A");
+    updateOutput('perf-ldg-50', ldgTotal || "N/A");
+
+    // Update Runway Info Fine Print
+    const depRwyVal = document.getElementById('dep-rwy')?.value;
+    const arrRwyVal = document.getElementById('arr-rwy')?.value;
+    updateOutput('dep-rwy-info', depRwyVal ? `Rwy ${depRwyVal}` : "");
+    updateOutput('arr-rwy-info', arrRwyVal ? `Rwy ${arrRwyVal}` : "");
+
+    // Safety Check Helper
+    const checkSafety = (availId, reqDist, statusId) => {
+        const avail = parseFloat(document.getElementById(availId)?.value);
+        const statusEl = document.getElementById(statusId);
+
+        if (statusEl) {
+            statusEl.className = "rwy-safety-indicator"; // Reset
+            statusEl.innerHTML = "";
+
+            if (!isNaN(avail) && reqDist) {
+                if (avail >= reqDist) {
+                    statusEl.classList.add("ok");
+                } else {
+                    statusEl.classList.add("warn");
+                }
+            }
+        }
+    };
+
+    // Perform Checks
+    // Takeoff vs Takeoff Distance (Over 50' usually, or Roll? Safety usually implies clearing obstacle)
+    // Using TO Over 50' for safety
+    checkSafety('avail-to-dist', toTotal, 'to-safety-status');
+
+    // Landing vs Landing Distance (Over 50')
+    checkSafety('avail-ldg-dist', ldgTotal, 'ldg-safety-status');
 }
 
 /**
@@ -873,9 +1440,9 @@ function getCurrentAircraftModel() {
         }
     }
 
-    // Fallback to default model (C150N)
-    console.log('Using default model: C150N');
-    return 'C150N';
+    // Fallback to default model
+    console.log('Using default model: GENERIC');
+    return 'GENERIC';
 }
 
 // Helper function to load model-specific data into UI
@@ -922,8 +1489,365 @@ function loadModelData(modelCode) {
     console.log('Model data loaded successfully');
 }
 
-// Helper
-function updateOutput(id, value) {
+// --- Flight Planning Extensions ---
+
+function setupFlightPlanningUI() {
+    const addLegBtn = document.getElementById('add-leg-btn');
+    const seeSummaryBtn = document.getElementById('see-summary-btn');
+    const closeSummaryBtn = document.getElementById('close-summary-btn');
+    const closeSummaryFooterBtn = document.getElementById('close-summary-footer-btn');
+    const closeLegsBtn = document.getElementById('close-legs-btn');
+    const closeLegsFooterBtn = document.getElementById('close-legs-footer-btn');
+    const clearLegsBtn = document.getElementById('clear-legs-btn');
+    const copySummaryBtn = document.getElementById('copy-summary-btn');
+
+    if (addLegBtn) addLegBtn.addEventListener('click', addLeg);
+    if (seeSummaryBtn) seeSummaryBtn.addEventListener('click', showSummary);
+
+    // Modal Close buttons
+    if (closeSummaryBtn) closeSummaryBtn.addEventListener('click', () => document.getElementById('summary-modal').classList.add('hidden'));
+    if (closeSummaryFooterBtn) closeSummaryFooterBtn.addEventListener('click', () => document.getElementById('summary-modal').classList.add('hidden'));
+    if (closeLegsBtn) closeLegsBtn.addEventListener('click', () => document.getElementById('legs-modal').classList.add('hidden'));
+    if (closeLegsFooterBtn) closeLegsFooterBtn.addEventListener('click', () => document.getElementById('legs-modal').classList.add('hidden'));
+    if (clearLegsBtn) clearLegsBtn.addEventListener('click', clearLegs);
+    if (copySummaryBtn) copySummaryBtn.addEventListener('click', copySummaryToClipboard);
+
+    // Delete Leg Modal Listeners
+    const deleteLegModal = document.getElementById('delete-leg-modal');
+    const cancelDeleteLegBtn = document.getElementById('cancel-delete-leg-btn');
+    const confirmDeleteLegBtn = document.getElementById('confirm-delete-leg-btn');
+
+    if (cancelDeleteLegBtn) {
+        cancelDeleteLegBtn.addEventListener('click', () => {
+            if (deleteLegModal) deleteLegModal.classList.add('hidden');
+        });
+    }
+
+    if (confirmDeleteLegBtn) {
+        confirmDeleteLegBtn.addEventListener('click', () => {
+            if (legToDeleteIndex >= 0 && legToDeleteIndex < flightLegs.length) {
+                flightLegs.splice(legToDeleteIndex, 1);
+                saveFlightLegs();
+                showToast("Leg deleted.", "info");
+                showSummary();
+            }
+            if (deleteLegModal) deleteLegModal.classList.add('hidden');
+        });
+    }
+}
+
+function calculateDistance() {
+    if (!stationCoords.dep || !stationCoords.arr) return;
+
+    const lat1 = stationCoords.dep.lat;
+    const lon1 = stationCoords.dep.lon;
+    const lat2 = stationCoords.arr.lat;
+    const lon2 = stationCoords.arr.lon;
+
+    const R = 3440.065; // Earth radius in Nautical Miles
+
+    // Convert to radians
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    // Distance Calculation (Haversine)
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) * Math.cos(φ2) *
+        Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+
+    const distInput = document.getElementById('flight-dist');
+    if (distInput) distInput.value = Math.round(distance);
+
+    // True Course Calculation (Initial Bearing)
+    const y = Math.sin(Δλ) * Math.cos(φ2);
+    const x = Math.cos(φ1) * Math.sin(φ2) -
+        Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+
+    let θ = Math.atan2(y, x);
+    let bearing = (θ * 180 / Math.PI + 360) % 360; // Degrees
+
+    const trueCrsInput = document.getElementById('true-crs');
+    if (trueCrsInput) {
+        trueCrsInput.value = Math.round(bearing);
+        // Trigger calculation since we changed an input programmatically
+        // But calculateDistance is usually called inside flow, let's play safe.
+    }
+
+    console.log(`Calculated distance: ${distance.toFixed(1)} nm, True Course: ${bearing.toFixed(1)}°`);
+}
+
+function addLeg() {
+    const dep = document.getElementById('dep-station').value.trim().toUpperCase();
+    const arr = document.getElementById('arr-station').value.trim().toUpperCase();
+
+    if (!dep || !arr) {
+        showToast("Please enter both departure and arrival stations.", "error");
+        return;
+    }
+
+    const legData = {
+        dep: dep,
+        arr: arr,
+        dist: document.getElementById('flight-dist').value,
+        alt: document.getElementById('cruise-alt').value,
+        ete: document.getElementById('flight-ete').value,
+        fuel: document.getElementById('fuel-required').value,
+        toRoll: document.getElementById('perf-to-roll').value,
+        to50: document.getElementById('perf-to-50').value,
+        ldgRoll: document.getElementById('perf-ldg-roll').value,
+        ldg50: document.getElementById('perf-ldg-50').value,
+        timestamp: new Date().toISOString(),
+        // Capture State for restoration
+        state: {
+            depStation: dep,
+            arrStation: arr,
+            depAlt: document.getElementById('dep-alt').value,
+            arrAlt: document.getElementById('arr-alt').value,
+            cruiseAlt: document.getElementById('cruise-alt').value,
+            depAltSet: document.getElementById('dep-alt-set').value,
+            arrAltSet: document.getElementById('arr-alt-set').value,
+            cruiseAltSet: document.getElementById('cruise-alt-set').value,
+            depOat: document.getElementById('dep-oat').value,
+            arrOat: document.getElementById('arr-oat').value,
+            cruiseOat: document.getElementById('cruise-oat').value,
+            depWindDir: document.getElementById('dep-wind-dir').value,
+            depWindSpd: document.getElementById('dep-wind-spd').value,
+            arrWindDir: document.getElementById('arr-wind-dir').value,
+            arrWindSpd: document.getElementById('arr-wind-spd').value,
+            cruiseWindDir: document.getElementById('cruise-wind-dir').value,
+            cruiseWindSpd: document.getElementById('cruise-wind-spd').value,
+            depRwy: document.getElementById('dep-rwy').value,
+            arrRwy: document.getElementById('arr-rwy').value,
+            cruiseRpm: document.getElementById('cruise-rpm').value,
+            cruiseTas: document.getElementById('cruise-tas').value,
+            fuelGph: document.getElementById('fuel-gph').value,
+            fuelOnboard: document.getElementById('fuel-onboard').value,
+            wbFuelW: document.getElementById('wb-fuel-w').value,
+            payload: {
+                front: document.getElementById('wb-front-w').value,
+                back: document.getElementById('wb-back-w').value,
+                bag: document.getElementById('wb-bag-w').value
+            }
+        }
+    };
+
+    flightLegs.push(legData);
+    saveFlightLegs();
+    showToast(`Leg ${dep} to ${arr} added! Total legs: ${flightLegs.length}`, "success");
+}
+
+function showSummary() {
+    const modal = document.getElementById('summary-modal');
+    const content = document.getElementById('summary-content');
+    if (!modal || !content) return;
+
+    // Check if we have global handlers attached
+    if (!window.loadLeg) window.loadLeg = loadLeg;
+    if (!window.deleteLeg) window.deleteLeg = deleteLeg;
+
+    let html = `
+        <div class="summary-section">
+            <h4>Route & Progress (Click leg to load)</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Leg</th>
+                        <th>Dist</th>
+                        <th>ETE</th>
+                        <th>Fuel</th>
+                        <th>TO Roll</th>
+                        <th></th> 
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    if (flightLegs.length === 0) {
+        html += `<tr><td colspan="6" style="text-align:center;">No legs added yet</td></tr>`;
+    } else {
+        flightLegs.forEach((leg, index) => {
+            html += `
+                <tr class="summary-row">
+                    <td onclick="window.loadLeg(${index})">${leg.dep}-${leg.arr}</td>
+                    <td onclick="window.loadLeg(${index})">${leg.dist}nm</td>
+                    <td onclick="window.loadLeg(${index})">${leg.ete}</td>
+                    <td onclick="window.loadLeg(${index})">${leg.fuel}gal</td>
+                    <td onclick="window.loadLeg(${index})">${leg.toRoll}ft</td>
+                    <td style="text-align: right; width: 40px;">
+                        <button onclick="window.deleteLeg(event, ${index})" class="icon-btn delete-leg-btn" title="Delete Leg" style="padding: 0.2rem; margin: 0; color: #ef4444; border: none; background: transparent;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    html += `
+                </tbody>
+            </table>
+        </div>
+        <div class="summary-section">
+            <h4>Current Performance Details</h4>
+            <p><strong>Aircraft:</strong> ${document.getElementById('registration').value || '---'}</p>
+            <p><strong>TAS:</strong> ${document.getElementById('cruise-tas').value || '---'} kts</p>
+            <p><strong>Gnd Spd:</strong> ${document.getElementById('cruise-gs').value || '---'} kts</p>
+            <p><strong>Total Weight:</strong> ${document.getElementById('wb-total-w').value || '---'} lbs</p>
+            <p><strong>CG:</strong> ${document.getElementById('wb-cg').value || '---'} in</p>
+        </div>
+    `;
+
+    content.innerHTML = html;
+    modal.classList.remove('hidden');
+}
+
+function deleteLeg(event, index) {
+    event.stopPropagation(); // Prevent loading the leg
+    if (index < 0 || index >= flightLegs.length) return;
+
+    legToDeleteIndex = index;
+    const leg = flightLegs[index];
+
+    // Open Modal
+    const modal = document.getElementById('delete-leg-modal');
+    const text = document.getElementById('delete-leg-text');
+
+    if (text) text.textContent = `Are you sure you want to delete leg ${leg.dep}-${leg.arr}?`;
+    if (modal) modal.classList.remove('hidden');
+}
+
+function loadLeg(index) {
+    if (index < 0 || index >= flightLegs.length) return;
+    const leg = flightLegs[index];
+    const s = leg.state;
+
+    if (!s) {
+        showToast("Leg data is incomplete (old version).", "error");
+        return;
+    }
+
+    // Restore Values
+    function setVal(id, val) {
+        const el = document.getElementById(id);
+        if (el) el.value = val;
+    }
+
+    setVal('dep-station', s.depStation);
+    setVal('arr-station', s.arrStation);
+    setVal('dep-alt', s.depAlt);
+    setVal('arr-alt', s.arrAlt);
+    setVal('cruise-alt', s.cruiseAlt);
+    setVal('dep-alt-set', s.depAltSet);
+    setVal('arr-alt-set', s.arrAltSet);
+    setVal('cruise-alt-set', s.cruiseAltSet);
+    setVal('dep-oat', s.depOat);
+    setVal('arr-oat', s.arrOat);
+    setVal('cruise-oat', s.cruiseOat);
+    setVal('dep-wind-dir', s.depWindDir);
+    setVal('dep-wind-spd', s.depWindSpd);
+    setVal('arr-wind-dir', s.arrWindDir);
+    setVal('arr-wind-spd', s.arrWindSpd);
+    setVal('cruise-wind-dir', s.cruiseWindDir);
+    setVal('cruise-wind-spd', s.cruiseWindSpd);
+    setVal('dep-rwy', s.depRwy);
+    setVal('arr-rwy', s.arrRwy);
+    setVal('cruise-rpm', s.cruiseRpm);
+    setVal('cruise-tas', s.cruiseTas);
+    setVal('fuel-gph', s.fuelGph);
+    setVal('fuel-onboard', s.fuelOnboard);
+    setVal('wb-fuel-w', s.wbFuelW);
+
+    if (s.payload) {
+        setVal('wb-front-w', s.payload.front);
+        setVal('wb-back-w', s.payload.back);
+        setVal('wb-bag-w', s.payload.bag);
+    }
+
+    // Trigger calculation
+    // Note: We might want to re-fetch coordinates if they were not saved?
+    // Current app architecture saves coords in a variable `stationCoords`.
+    // We should probably trigger a station update or calculateDistance if needed.
+    // Ideally we'd save coordinates too, but recalculating distance mainly needs coords.
+    // Let's assume weather fetch might re-occur if user edits, but for now we just load values.
+
+    // BUT calculateDistance relies on `stationCoords` which might be null if page reloaded.
+    // We should probably force a weather/info update if we want coordinates back.
+    // Converting simple load to a full restore is tricky.
+    // Pragmantic approach: Just call weatherService to get info (silent update) or let user know.
+    // For now, let's just run calculateAll and warn if distance is 0.
+
+    // Actually, let's just re-trigger station update handles "blur" logic to ensure consistency.
+    // But that is async.
+    // Let's rely on stored values as much as possible.
+
+    calculateAll();
+
+    // Close modal
+    document.getElementById('summary-modal').classList.add('hidden');
+
+    showToast(`Loaded leg: ${s.depStation} -> ${s.arrStation}`, "success");
+
+    // Attempt to restore coordinates via background fetch if missing
+    if (!stationCoords.dep || !stationCoords.arr) {
+        if (s.depStation) handleStationUpdate('dep');
+        if (s.arrStation) handleStationUpdate('arr');
+    }
+}
+
+function copySummaryToClipboard() {
+    const content = document.getElementById('summary-content');
+    if (!content) return;
+
+    const text = content.innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        showToast("Summary copied to clipboard!", "success");
+    });
+}
+
+function clearLegs() {
+    if (confirm("Clear all stored flight legs?")) {
+        flightLegs = [];
+        saveFlightLegs();
+        showToast("Flight legs cleared.", "info");
+
+        // Re-render summary if open
+        const modal = document.getElementById('summary-modal');
+        if (!modal.classList.contains('hidden')) {
+            showSummary();
+        }
+    }
+}
+
+function saveFlightLegs() {
+    localStorage.setItem('avTrainerLegs', JSON.stringify(flightLegs));
+}
+
+function loadFlightLegs() {
+    const saved = localStorage.getItem('avTrainerLegs');
+    if (saved) {
+        flightLegs = JSON.parse(saved);
+        console.log(`Loaded ${flightLegs.length} legs from storage`);
+    }
+}
+
+/**
+ * Utility to update UI output fields (grey cells)
+ */
+function updateOutput(id, val) {
     const el = document.getElementById(id);
-    if (el) el.value = value;
+    if (el) {
+        // Value is an input if it's the flight calculator
+        if (el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+            el.value = val;
+        } else {
+            el.textContent = val;
+        }
+    }
 }

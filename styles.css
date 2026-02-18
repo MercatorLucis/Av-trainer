@@ -267,7 +267,8 @@ input:checked+.slider:before {
 }
 
 /* Input/Output Styling */
-input {
+input,
+select {
     width: 100%;
     padding: 0.5rem 0.6rem;
     border: 2px solid var(--border-color);
@@ -301,6 +302,11 @@ input[type=number] {
     font-weight: 500;
 }
 
+#dep-station,
+#arr-station {
+    text-transform: uppercase;
+}
+
 [data-theme="dark"] .input-yellow {
     color: #fef08a;
     /* Light yellow text on brown bg */
@@ -310,6 +316,18 @@ input[type=number] {
 .input-yellow:focus {
     outline: none;
     box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.4);
+}
+
+/* Station Wrapper for weather status */
+.station-wrapper {
+    display: flex;
+    flex-direction: column;
+    min-height: 75px;
+    /* Reserve space for input + status message */
+}
+
+.station-wrapper input {
+    width: 100%;
 }
 
 .output-white {
@@ -325,13 +343,15 @@ input[type=number] {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr 1fr;
     gap: 0.5rem;
-    align-items: center;
+    align-items: start;
 }
 
 .conditions-grid label {
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--text-secondary);
+    padding-top: 0.7rem;
+    /* Center label with input field */
 }
 
 .col-header {
@@ -407,6 +427,125 @@ input[type=number] {
     text-align: center;
     color: #d1d5db;
     font-size: 0.8rem;
+    padding-top: 0.8rem;
+    /* Center with input field */
+}
+
+/* Time Card Styling */
+.time-grid {
+    display: flex;
+    flex-wrap: wrap;
+    /* Allow items to wrap if space is tight */
+    justify-content: center;
+    /* Center items when wrapped */
+    gap: 1rem;
+}
+
+.flight-time-left {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    flex: 1 1 200px;
+    /* Flex grow, shrink, min-width */
+    min-width: 0;
+    /* Allow shrinking below min content size */
+}
+
+/* .zulu-container used to be here, removed empty rule */
+
+
+/* Make the clock fluid */
+.digital-clock {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: clamp(1.5rem, 5vw, 2.2rem);
+    /* Responsive font size */
+    font-weight: 700;
+    color: var(--primary-accent);
+    background-color: var(--input-yellow);
+    border: 2px solid var(--border-color);
+    padding: 0.5rem;
+    text-align: center;
+    letter-spacing: 2px;
+    width: 100%;
+}
+
+.departure-container {
+    /* Full width of the left column */
+    width: 100%;
+}
+
+.departure-container input {
+    /* Ensure input fills the container */
+    width: 100%;
+    height: 3rem;
+    /* Match visual weight */
+    text-align: center;
+    font-size: 1.2rem;
+}
+
+.departure-container input:invalid {
+    border-color: #ef4444;
+    /* Red border for invalid */
+    color: #ef4444;
+}
+
+/* Removed empty valid block */
+
+.fine-print {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-align: center;
+    margin-top: 0.3rem;
+    font-style: italic;
+    min-height: 1.2em;
+    /* Reserve space */
+}
+
+.flight-time-left {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    flex: 1 1 200px;
+    min-width: 0;
+}
+
+.ete-eta-dist-container {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+    flex: 2 1 250px;
+    min-width: 0;
+}
+
+.ete-box,
+.eta-box,
+.dist-box {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Adjust labels for better stacking look */
+.flight-time-left label,
+.ete-eta-container label {
+    margin-bottom: 0.3rem;
+    display: block;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.ete-box,
+.eta-box {
+    width: 100%;
+}
+
+.ete-box input,
+.eta-box input,
+.dist-box input {
+    text-align: center;
+    width: 100%;
+    height: 3rem;
+    /* Match height of other inputs in this section */
+    font-size: 1.2rem;
 }
 
 .fuel-grid {
@@ -458,28 +597,80 @@ td {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
-    align-items: center;
+    align-items: start;
 }
 
-/* Clear Button */
-.clear-btn-container {
+.perf-item-wrapper {
     display: flex;
-    justify-content: flex-start;
-    align-items: flex-start;
+    flex-direction: column;
+}
+
+.perf-item-wrapper .fine-print {
+    text-align: left;
+    margin-top: 0.2rem;
+}
+
+.rwy-status-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.rwy-status-wrapper input {
+    flex: 1;
+}
+
+.rwy-safety-indicator {
+    font-size: 0.75rem;
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    white-space: nowrap;
+}
+
+.rwy-safety-indicator.ok {
+    color: #22c55e;
+}
+
+.rwy-safety-indicator.ok::before {
+    content: "✓";
+    font-style: normal;
+    font-weight: bold;
+}
+
+.rwy-safety-indicator.warn {
+    color: #ef4444;
+}
+
+.rwy-safety-indicator.warn::before {
+    content: "✗";
+    font-style: normal;
+    font-weight: bold;
+}
+
+/* Action Button Group */
+.action-btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
 }
 
 .action-btn {
     background-color: var(--card-bg);
     border: 2px solid var(--border-color);
     color: var(--text-primary);
-    padding: 1rem 2rem;
+    line-height: 1.2;
     font-family: 'Rajdhani', sans-serif;
     font-weight: 700;
-    font-size: 1.1rem;
+    font-size: 0.9rem;
     text-transform: uppercase;
     cursor: pointer;
     transition: all 0.2s;
     box-shadow: var(--shadow-md);
+    text-align: center;
+    flex: 1;
+    height: 5rem;
 }
 
 .action-btn:hover {
@@ -584,13 +775,19 @@ td {
 .modal-card {
     background-color: var(--card-bg);
     padding: 2rem;
-    width: 90%;
-    max-width: 450px;
+    width: 95%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
     border: 2px solid var(--border-color);
     box-shadow: var(--shadow-md);
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+}
+
+.modal-card.large-modal {
+    max-width: 800px;
 }
 
 .modal-card.small-modal {
@@ -690,6 +887,59 @@ td {
     flex-grow: 1;
     margin-left: 0.5rem;
     font-family: 'JetBrains Mono', monospace;
+}
+
+/* Leg List Item */
+.leg-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    margin-bottom: 0.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+}
+
+.leg-header {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 700;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.3rem;
+    color: var(--primary-accent);
+}
+
+.summary-section {
+    margin-bottom: 1.5rem;
+}
+
+.summary-section h4 {
+    text-transform: uppercase;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--input-yellow);
+}
+
+/* Status Indicators */
+.status-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+.status-ok {
+    color: #22c55e;
+    /* Green */
+}
+
+.status-warn {
+    color: #ef4444;
+    /* Red */
 }
 
 .ac-controls {
@@ -798,10 +1048,218 @@ td {
     border-color: transparent transparent var(--primary-accent) transparent;
 }
 
-/* Speed Grid */
 .speed-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.8rem;
     align-items: center;
+}
+
+/* Weather Loading Indicator */
+.weather-status {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.2rem;
+    min-height: 1em;
+}
+
+.weather-status .spinner {
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--border-color);
+    border-top-color: var(--primary-accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.weather-status.success {
+    color: #22c55e;
+}
+
+
+
+.weather-status.error {
+    color: #ef4444;
+}
+
+/* Clock Section */
+.clock-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.clock-wrapper {
+    position: relative;
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 0.5rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    min-height: 2.5rem;
+}
+
+/* Background Label (Watermark) */
+.clock-bg-label {
+    position: absolute;
+    top: 50%;
+    right: 1rem;
+    transform: translateY(-50%);
+    font-size: 2.5rem;
+    font-weight: 900;
+    color: var(--text-secondary);
+    opacity: 0.07;
+    pointer-events: none;
+    z-index: 1;
+    letter-spacing: 2px;
+    white-space: nowrap;
+}
+
+/* Ensure digital clock is on top */
+.digital-clock {
+    z-index: 2;
+    background: transparent !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    font-size: 1.5rem !important;
+}
+
+.digital-clock.local-clock {
+    color: var(--primary-accent);
+}
+
+/* Styled Select */
+.tz-select-wrapper {
+    margin-top: 0.5rem;
+}
+
+.styled-select {
+    width: 100%;
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid var(--border-color);
+    border-radius: 0;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.3rem 0;
+    transition: all 0.3s;
+    text-align: center;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    background-size: 1em;
+}
+
+.styled-select:hover,
+.styled-select:focus {
+    border-color: var(--primary-accent);
+    color: var(--text-primary);
+    outline: none;
+}
+
+.styled-select option {
+    background-color: var(--card-bg);
+    color: var(--text-primary);
+}
+
+/* Toast Notifications */
+.toast-container {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    z-index: 3000;
+}
+
+.toast {
+    background-color: var(--card-bg);
+    color: var(--text-primary);
+    padding: 0.8rem 1.2rem;
+    border: 2px solid var(--border-color);
+    box-shadow: var(--shadow-md);
+    border-radius: var(--border-radius);
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    min-width: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    animation: slideUp 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    opacity: 1;
+}
+
+.toast.hiding {
+    animation: fadeOut 0.3s forwards;
+}
+
+.toast-msg {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.toast-success {
+    border-left: 5px solid #22c55e;
+}
+
+.toast-error {
+    border-left: 5px solid #ef4444;
+}
+
+.toast-info {
+    border-left: 5px solid var(--primary-accent);
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes fadeOut {
+    to {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+}
+
+[data-theme="dark"] .toast {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+}
+
+/* Make table rows clickable */
+.summary-row {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.summary-row:hover {
+    background-color: rgba(251, 191, 36, 0.2);
+    /* Light yellow tint */
 }

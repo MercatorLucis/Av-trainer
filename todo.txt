@@ -1,0 +1,4 @@
+default placeholders
+implement pdf reader for poh
+poh auto-fill in performance section
+proxy server for avwx
