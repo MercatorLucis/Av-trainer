@@ -10,7 +10,7 @@ const weatherService = {
 
     // Helper to wrap URLs with CORS proxy
     proxyUrl(url) {
-        return this.corsProxy + encodeURIComponent(url);
+        return `${this.corsProxy}?url=${encodeURIComponent(url)}`;
     },
 
     // Station Database (Local fallback for static data like Elevation/Runways)
