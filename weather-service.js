@@ -2,7 +2,7 @@ const weatherService = {
     // NOAA Aviation Weather Center APIs (Free, Public)
     apiBase: 'https://aviationweather.gov/api/data',
     // CORS proxy for browser compatibility (switch to your own proxy for production)
-    corsProxy: 'https://corsproxy.io/?url=',
+    corsProxy: 'https://av-cors-proxy.liu-qianheng-ai.workers.dev/',
 
     get metarUrl() { return `${this.apiBase}/metar`; },
     get tafUrl() { return `${this.apiBase}/taf`; },

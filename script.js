@@ -1165,6 +1165,39 @@ function calculateFuel() {
     updateOutput('fuel-cruise', cruiseFuel.toFixed(1));
     updateOutput('fuel-required', reqFuel.toFixed(1));
     updateOutput('fuel-remaining', remain.toFixed(1));
+
+    // --- Insufficient Fuel Warning ---
+    const remainingEl = document.getElementById('fuel-remaining');
+    let insufficientNote = document.getElementById('fuel-insufficient-note');
+
+    // Create the fine-print note element if it doesn't exist yet
+    if (!insufficientNote) {
+        insufficientNote = document.createElement('div');
+        insufficientNote.id = 'fuel-insufficient-note';
+        insufficientNote.className = 'fine-print';
+        insufficientNote.style.gridColumn = '1 / -1';
+        insufficientNote.style.color = '#ef4444';
+        insufficientNote.style.fontWeight = '600';
+        if (remainingEl && remainingEl.parentNode) {
+            remainingEl.parentNode.insertBefore(insufficientNote, remainingEl.nextSibling);
+        }
+    }
+
+    if (fuelOnBoard > 0 && remain < reserve) {
+        // Show warning
+        if (remainingEl) {
+            remainingEl.style.color = '#ef4444';
+            remainingEl.style.fontWeight = '800';
+        }
+        insufficientNote.textContent = '⚠ Insufficient fuel — below VFR reserve';
+    } else {
+        // Clear warning
+        if (remainingEl) {
+            remainingEl.style.color = '';
+            remainingEl.style.fontWeight = '';
+        }
+        insufficientNote.textContent = '';
+    }
 }
 
 /**

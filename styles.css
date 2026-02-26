@@ -1263,3 +1263,88 @@ td {
     background-color: rgba(251, 191, 36, 0.2);
     /* Light yellow tint */
 }
+
+/* ── Report a Bug (sidebar) ── */
+.report-bug-link {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 1rem;
+    padding: 0.5rem 0.6rem;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border: 1px solid var(--border-color);
+    border-radius: 0px;
+    transition: all 0.2s;
+}
+
+.report-bug-link:hover {
+    background-color: var(--input-yellow);
+    color: #451a03;
+    border-color: var(--input-yellow-border);
+}
+
+[data-theme="dark"] .report-bug-link:hover {
+    color: #fef08a;
+}
+
+/* ── Feedback email link (About page) ── */
+.feedback-email-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    border: 2px solid var(--border-color);
+    background-color: var(--output-white);
+    color: var(--primary-accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: var(--shadow-md);
+    transition: all 0.2s;
+}
+
+.feedback-email-link:hover {
+    background-color: var(--input-yellow);
+    color: #451a03;
+    border-color: var(--input-yellow-border);
+    transform: translateY(-2px);
+}
+
+[data-theme="dark"] .feedback-email-link:hover {
+    color: #fef08a;
+}
+
+/* ── Copyright strip (About page) ── */
+.about-copyright {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 1rem;
+    font-size: 0.78rem;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.about-copyright span {
+    font-weight: 400;
+    font-size: 0.72rem;
+    opacity: 0.7;
+}
+
+/* Override .span-2 hr rule for about-copyright div */
+.about-copyright.span-2 {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 0;
+}

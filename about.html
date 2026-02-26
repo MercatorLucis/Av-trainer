@@ -56,6 +56,17 @@
                         <span class="slider round"></span>
                     </label>
                 </div>
+                <a href="mailto:liu.qianheng.ai@outlook.com?subject=Av-Trainer%20Bug%20Report" class="report-bug-link">
+                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path
+                            d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
+                        </path>
+                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                    Report a Bug
+                </a>
             </div>
         </aside>
         <div class="sidebar-overlay" id="sidebar-overlay"></div>
@@ -64,17 +75,20 @@
             <section class="card span-2 box-shadow">
                 <h2>About the Project</h2>
                 <p style="margin-bottom: 1rem; color: var(--text-secondary);">
-                    The Aircraft Performance Calculator is originally designed to assist student pilots in quickly
-                    calculating performance
-                    data.
+                    The Aircraft Performance Calculator is originally designed to assist seasoned student pilots in
+                    quickly
+                    calculating performance data during commercial time building for flight following purposes.
+                    Knowledge of filling out navigation logs beforehand is recommended.
                 </p>
                 <p style="margin-bottom: 1rem; color: var(--text-secondary);">
                     This tool features:
                 </p>
                 <ul style="margin-left: 1.5rem; margin-bottom: 1rem; color: var(--text-secondary);">
-                    <li>Real-time calculations for Density Altitude and Pressure Altitude.</li>
-                    <li>Wind component analysis (Headwind/Crosswind).</li>
+                    <li>Real-time calculations for weather related information using live weather data.</li>
+                    <li>Runway analysis for takeoff and landing.</li>
                     <li>Aircraft Profile Management with local storage persistence.</li>
+                    <li>Calculations for aircraft related information such as W/B and fuel consumption</li>
+                    <li>Leg storage and summaries</li>
                 </ul>
             </section>
 
@@ -93,15 +107,57 @@
                     <p style="color: var(--text-secondary);">Yes, aircraft profiles are saved locally in your browser's
                         storage.</p>
                 </div>
-                <div class="qa-item">
+                <div class="qa-item" style="margin-bottom: 1.5rem;">
                     <h3 style="font-size: 1rem; color: var(--primary-accent); margin-bottom: 0.5rem;">Can I use this for
                         flight planning?</h3>
                     <p style="color: var(--text-secondary);">This tool is for educational and training purposes for the
                         moment. Always
                         refer to the official Pilot's Operating Handbook (POH) of your respective aircraft for
-                        operational data.</p>
+                        operational data. Additionally the actual BEW arm for a specific airframe is found on the
+                        aircraft's Weight & Balance data sheet (unique per tail number). A standard arm is used as a
+                        value for a representative aircraft of similar type. Pilots should enter their specific
+                        aircraft's BEW arm from their W&B
+                        sheet when creating the profile.</p>
+                </div>
+                <div class="qa-item" style="margin-bottom: 1.5rem;">
+                    <h3 style="font-size: 1rem; color: var(--primary-accent); margin-bottom: 0.5rem;">What data is used
+                        for the weather service</h3>
+                    <p style="color: var(--text-secondary);">The NOAA Aviation Weather Center API is used for METAR and
+                        TAF data. </p>
+                </div>
+                <div class="qa-item">
+                    <h3 style="font-size: 1rem; color: var(--primary-accent); margin-bottom: 0.5rem;">What are supported
+                        aircraft types and airports?</h3>
+                    <p style="color: var(--text-secondary);">At the moment only the Cessna 150 and 172 family of
+                        aircraft are supported, but there's more to come as well as custom POH data.</p>
                 </div>
             </section>
+
+            <!-- Contact & Feedback Section -->
+            <section class="card span-2 box-shadow">
+                <h2>Contact &amp; Feedback</h2>
+                <p style="margin-bottom: 1rem; color: var(--text-secondary);">
+                    Have a suggestion, found something off, or just want to say hi? Reach out directly:
+                </p>
+                <a href="mailto:liu.qianheng.ai@outlook.com?subject=Av-Trainer%20Feedback" class="feedback-email-link">
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                        <polyline points="22,6 12,13 2,6"></polyline>
+                    </svg>
+                    liu.qianheng.ai@outlook.com
+                </a>
+                <p style="margin-top: 0.75rem; color: var(--text-secondary); font-size: 0.85rem;">
+                    Bug reports and feature requests are welcome. Please include your browser, device, and a brief
+                    description of the issue.
+                </p>
+            </section>
+
+            <!-- Copyright -->
+            <div class="about-copyright span-2">
+                &copy; 2026 Qian Heng, Liu &mdash; All Rights Reserved.
+                <span>Aircraft Performance Calculator &middot; For training purposes only.</span>
+            </div>
         </main>
     </div>
 
