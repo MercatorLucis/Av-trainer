@@ -51,7 +51,7 @@ body {
 }
 
 .app-container {
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
 }
 
@@ -126,7 +126,7 @@ h2 {
 /* Grid Layout */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
     gap: 1.5rem;
 }
 
@@ -682,6 +682,32 @@ td {
 [data-theme="dark"] .action-btn:hover {
     color: #fef08a;
     /* Light yellow text for contrast */
+}
+
+/* Text Button Variations */
+.action-btn.text-btn {
+    background-color: transparent;
+    border: 2px dashed var(--border-color);
+    box-shadow: none;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 3rem;
+    width: 100%;
+}
+
+.action-btn.text-btn:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+    border-color: var(--primary-accent);
+    color: var(--primary-accent);
+    transform: none;
+}
+
+[data-theme="dark"] .action-btn.text-btn:hover {
+    background-color: rgba(255, 255, 255, 0.02);
+    border-color: var(--primary-accent);
 }
 
 /* Aircraft Selection & Dropdown */
@@ -1347,4 +1373,103 @@ td {
     border: none;
     border-top: 1px solid var(--border-color);
     margin: 0;
+}
+
+/* Drag and Drop Weight and Balance (Compact Google Docs Style) */
+.wb-card table {
+    border-collapse: separate;
+    border-spacing: 0 0.5rem;
+}
+
+.wb-row td {
+    position: relative;
+    padding: 0.1rem;
+    /* Reduce padding for tighter fit */
+}
+
+/* Wrapper for the first cell to align the drag handle and the input */
+.wb-item-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    position: relative;
+}
+
+.drag-handle {
+    cursor: grab;
+    padding: 2px 4px;
+    color: #9ca3af;
+    font-size: 1rem;
+    font-weight: bold;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    height: 100%;
+}
+
+.drag-handle:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .drag-handle:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.wb-row.dragging {
+    opacity: 0.5;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* The input inside the item cell takes remaining space */
+.wb-item-cell input {
+    flex: 1;
+}
+
+/* Delete button logic */
+.wb-action-cell {
+    position: relative;
+}
+
+.delete-wb-row {
+    position: absolute;
+    right: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #ef4444;
+    background: none;
+    border: none;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.2rem;
+    border-radius: 4px;
+    z-index: 10;
+}
+
+.delete-wb-row:hover {
+    color: #dc2626;
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+.delete-wb-row.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.wb-row:hover .delete-wb-row:not(.hidden) {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.wb-action-cell input {
+    padding-right: 20px;
+    /* Make room for the delete button */
 }

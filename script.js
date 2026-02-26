@@ -58,9 +58,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         setupFlightPlanningUI();
 
         if (document.querySelector('.dashboard-grid')) {
+            setupWBTable();
             calculateAll();
             startZuluClock();
-            setupWeatherIntegration(); // New line
+            setupWeatherIntegration();
         }
     } catch (e) {
         console.error("Critical Error during initialization:", e);
@@ -931,8 +932,8 @@ function setupEventListeners() {
     }
     const clearBtn = document.getElementById('clear-btn');
     clearBtn?.addEventListener('click', () => {
-        // Target only user inputs (yellow)
-        const userInputs = document.querySelectorAll('input.input-yellow');
+        // Target only user inputs (yellow), keeping custom row names intact
+        const userInputs = document.querySelectorAll('input.input-yellow:not(.wb-name-input)');
         userInputs.forEach(input => {
             input.value = "";
         });
@@ -1207,54 +1208,143 @@ function calculateWB() {
     // Get current aircraft model
     const currentModel = getCurrentAircraftModel();
 
-    // Get Weights
-    const emptyW = parseFloat(document.getElementById('wb-empty-w')?.value) || 0;
-    const frontW = parseFloat(document.getElementById('wb-front-w')?.value) || 0;
-    const backW = parseFloat(document.getElementById('wb-back-w')?.value) || 0;
-    const bagW = parseFloat(document.getElementById('wb-bag-w')?.value) || 0;
+    // Fuel Weight calculations (tied to fuel on board specifically)
     const fuelOnBoard = parseFloat(document.getElementById('fuel-onboard')?.value) || 0;
-
-    // Get arms from aircraft data system
-    // Get arms from inputs (now editable)
-    let emptyA = parseFloat(document.getElementById('wb-empty-a')?.value) || 0;
-    let frontA = parseFloat(document.getElementById('wb-front-a')?.value) || 0;
-    let backA = parseFloat(document.getElementById('wb-back-a')?.value) || 0;
-    let bagA = parseFloat(document.getElementById('wb-bag-a')?.value) || 0;
-    let fuelA = parseFloat(document.getElementById('wb-fuel-a')?.value) || 0;
-
-    // We no longer overwrite these from the model every time.
-    // They are set by loadModelData() when the aircraft is selected.
-
-    // Fuel Weight (6 lbs/gal)
     const fuelW = fuelOnBoard * 6;
-
-    // Only update the weight input if the user is NOT currently focused on it
     const fuelWInput = document.getElementById('wb-fuel-w');
     if (fuelWInput && document.activeElement !== fuelWInput) {
         fuelWInput.value = fuelW.toFixed(1);
     }
 
-    // Moments
-    const emptyM = emptyW * emptyA;
-    const frontM = frontW * frontA;
-    const backM = backW * backA;
-    const bagM = bagW * bagA;
-    const fuelM = fuelW * fuelA;
+    let totalW = 0;
+    let totalM = 0;
 
-    updateOutput('wb-empty-m', emptyM.toFixed(0));
-    updateOutput('wb-front-m', frontM.toFixed(0));
-    updateOutput('wb-back-m', backM.toFixed(0));
-    updateOutput('wb-bag-m', bagM.toFixed(0));
-    updateOutput('wb-fuel-m', fuelM.toFixed(0));
+    const rows = document.querySelectorAll('.wb-row');
+    rows.forEach(row => {
+        const wInput = row.querySelector('.wb-w');
+        const aInput = row.querySelector('.wb-a');
+        const mOutput = row.querySelector('.wb-m');
 
-    // Totals
-    const totalW = emptyW + frontW + backW + bagW + fuelW;
-    const totalM = emptyM + frontM + backM + bagM + fuelM;
+        const weight = parseFloat(wInput?.value) || 0;
+        const arm = parseFloat(aInput?.value) || 0;
+
+        const moment = weight * arm;
+        if (mOutput) mOutput.value = moment.toFixed(0);
+
+        totalW += weight;
+        totalM += moment;
+    });
+
     const cg = totalW > 0 ? totalM / totalW : 0;
 
     updateOutput('wb-total-w', totalW.toFixed(1));
     updateOutput('wb-total-m', totalM.toFixed(0));
     updateOutput('wb-cg', cg.toFixed(2));
+}
+
+function setupWBTable() {
+    const tbody = document.getElementById('wb-tbody');
+    const addBtn = document.getElementById('add-wb-row-btn');
+
+    if (!tbody) return;
+
+    let draggedRow = null;
+
+    // Initialize drag & drop for a row
+    function makeRowDraggable(row) {
+        const handle = row.querySelector('.drag-handle');
+
+        // Only allow dragging when clicking the handle
+        if (handle) {
+            handle.addEventListener('mousedown', () => row.setAttribute('draggable', 'true'));
+            handle.addEventListener('mouseup', () => row.removeAttribute('draggable'));
+            row.addEventListener('mouseleave', () => row.removeAttribute('draggable'));
+        }
+
+        row.addEventListener('dragstart', (e) => {
+            draggedRow = row;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', row.innerHTML);
+            setTimeout(() => row.classList.add('dragging'), 0);
+        });
+
+        row.addEventListener('dragend', () => {
+            row.classList.remove('dragging');
+            row.removeAttribute('draggable');
+            draggedRow = null;
+            calculateAll(); // Recalculate if order matters for anything, or save state
+        });
+
+        // Delete button listener
+        const delBtn = row.querySelector('.delete-wb-row');
+        if (delBtn) {
+            delBtn.addEventListener('click', () => {
+                row.remove();
+                calculateAll();
+            });
+            // Show delete button on hover
+            row.addEventListener('mouseenter', () => delBtn.classList.remove('hidden'));
+            row.addEventListener('mouseleave', () => delBtn.classList.add('hidden'));
+        }
+
+        // Input listeners for new rows
+        const inputs = row.querySelectorAll('input');
+        inputs.forEach(input => {
+            input.addEventListener('input', calculateAll);
+        });
+    }
+
+    tbody.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const afterElement = getDragAfterElement(tbody, e.clientY);
+        if (draggedRow) {
+            if (afterElement == null) {
+                tbody.appendChild(draggedRow);
+            } else {
+                tbody.insertBefore(draggedRow, afterElement);
+            }
+        }
+    });
+
+    function getDragAfterElement(container, y) {
+        const draggableElements = [...container.querySelectorAll('.wb-row:not(.dragging)')];
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    // Initialize existing rows
+    const existingRows = tbody.querySelectorAll('.wb-row');
+    existingRows.forEach(makeRowDraggable);
+
+    // Add new row button
+    if (addBtn) {
+        addBtn.addEventListener('click', () => {
+            const tr = document.createElement('tr');
+            tr.className = 'wb-row';
+            tr.innerHTML = `
+                <td class="wb-item-cell">
+                    <div class="drag-handle">≡</div>
+                    <input type="text" class="input-yellow wb-name-input" value="New Item">
+                </td>
+                <td><input type="number" class="input-yellow wb-w"></td>
+                <td><input type="number" class="input-yellow wb-a"></td>
+                <td class="wb-action-cell">
+                    <input type="text" class="output-white wb-m" readonly>
+                    <button class="icon-btn delete-wb-row hidden" tabindex="-1">✕</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+            makeRowDraggable(tr);
+            calculateAll();
+        });
+    }
 }
 
 /**
@@ -1306,8 +1396,8 @@ function calculatePerformance() {
     // Update Runway Info Fine Print
     const depRwyVal = document.getElementById('dep-rwy')?.value;
     const arrRwyVal = document.getElementById('arr-rwy')?.value;
-    updateOutput('dep-rwy-info', depRwyVal ? `Rwy ${depRwyVal}` : "");
-    updateOutput('arr-rwy-info', arrRwyVal ? `Rwy ${arrRwyVal}` : "");
+    updateOutput('dep-rwy-info', depRwyVal ? `Rwy ${depRwyVal} ` : "");
+    updateOutput('arr-rwy-info', arrRwyVal ? `Rwy ${arrRwyVal} ` : "");
 
     // Safety Check Helper
     const checkSafety = (availId, reqDist, statusId) => {
@@ -1670,7 +1760,7 @@ function addLeg() {
 
     flightLegs.push(legData);
     saveFlightLegs();
-    showToast(`Leg ${dep} to ${arr} added! Total legs: ${flightLegs.length}`, "success");
+    showToast(`Leg ${dep} to ${arr} added! Total legs: ${flightLegs.length} `, "success");
 }
 
 function showSummary() {
@@ -1683,7 +1773,7 @@ function showSummary() {
     if (!window.deleteLeg) window.deleteLeg = deleteLeg;
 
     let html = `
-        <div class="summary-section">
+                < div class="summary-section" >
             <h4>Route & Progress (Click leg to load)</h4>
             <table>
                 <thead>
@@ -1726,16 +1816,16 @@ function showSummary() {
     html += `
                 </tbody>
             </table>
-        </div>
-        <div class="summary-section">
-            <h4>Current Performance Details</h4>
-            <p><strong>Aircraft:</strong> ${document.getElementById('registration').value || '---'}</p>
-            <p><strong>TAS:</strong> ${document.getElementById('cruise-tas').value || '---'} kts</p>
-            <p><strong>Gnd Spd:</strong> ${document.getElementById('cruise-gs').value || '---'} kts</p>
-            <p><strong>Total Weight:</strong> ${document.getElementById('wb-total-w').value || '---'} lbs</p>
-            <p><strong>CG:</strong> ${document.getElementById('wb-cg').value || '---'} in</p>
-        </div>
-    `;
+        </div >
+                <div class="summary-section">
+                    <h4>Current Performance Details</h4>
+                    <p><strong>Aircraft:</strong> ${document.getElementById('registration').value || '---'}</p>
+                    <p><strong>TAS:</strong> ${document.getElementById('cruise-tas').value || '---'} kts</p>
+                    <p><strong>Gnd Spd:</strong> ${document.getElementById('cruise-gs').value || '---'} kts</p>
+                    <p><strong>Total Weight:</strong> ${document.getElementById('wb-total-w').value || '---'} lbs</p>
+                    <p><strong>CG:</strong> ${document.getElementById('wb-cg').value || '---'} in</p>
+                </div>
+            `;
 
     content.innerHTML = html;
     modal.classList.remove('hidden');
@@ -1752,7 +1842,7 @@ function deleteLeg(event, index) {
     const modal = document.getElementById('delete-leg-modal');
     const text = document.getElementById('delete-leg-text');
 
-    if (text) text.textContent = `Are you sure you want to delete leg ${leg.dep}-${leg.arr}?`;
+    if (text) text.textContent = `Are you sure you want to delete leg ${leg.dep} -${leg.arr}?`;
     if (modal) modal.classList.remove('hidden');
 }
 
@@ -1825,7 +1915,7 @@ function loadLeg(index) {
     // Close modal
     document.getElementById('summary-modal').classList.add('hidden');
 
-    showToast(`Loaded leg: ${s.depStation} -> ${s.arrStation}`, "success");
+    showToast(`Loaded leg: ${s.depStation} -> ${s.arrStation} `, "success");
 
     // Attempt to restore coordinates via background fetch if missing
     if (!stationCoords.dep || !stationCoords.arr) {
